@@ -1,0 +1,156 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-13 (Intel) runners have very limited capacity on the free tier
+        # and can queue for >30 min. We ship Linux/macOS-arm64/Windows on tag
+        # push; Intel Mac users can use the Linux binary via Rosetta or pip.
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            platform: linux
+            artifact_suffix: ""
+          - os: macos-latest       # arm64 (Apple Silicon)
+            arch: arm64
+            platform: macos
+            artifact_suffix: ""
+          - os: windows-latest
+            arch: x86_64
+            platform: windows
+            artifact_suffix: ".exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Specific patch versions (3.11.10) aren't always cached on every
+          # runner (arm64 macOS in particular). Use the floating 3.11 and
+          # let the action grab the latest cached patch.
+          python-version: '3.11'
+
+      - name: Install libsodium (macOS — belt-and-braces for xeddsa C ext)
+        if: matrix.platform == 'macos'
+        run: |
+          brew install libsodium || true
+          # Help pip find brew's libsodium if a wheel isn't available.
+          echo "LDFLAGS=-L$(brew --prefix libsodium)/lib"   >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$(brew --prefix libsodium)/include" >> $GITHUB_ENV
+
+      - name: Install libsodium-dev (Linux)
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y libsodium-dev
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.10.0
+
+      - name: Build (Linux / macOS)
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          export SOURCE_DATE_EPOCH=$(cat packaging/SOURCE_DATE_EPOCH | tr -d '\n')
+          export PYTHONHASHSEED=0
+          export PYTHONDONTWRITEBYTECODE=1
+          export TZ=UTC
+          export LC_ALL=C.UTF-8
+          pyinstaller --clean --noconfirm packaging/void-server.spec
+          pyinstaller --clean --noconfirm packaging/void.spec
+          VERSION=$(cat VERSION | tr -d '\n')
+          cd dist
+          mv void void-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}
+          mv void-server void-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}
+          # Per-platform SHA256SUMS so parallel jobs don't collide on the
+          # release asset name. A separate 'consolidate' job below merges them.
+          SUMS="SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}"
+          : > "$SUMS"
+          for f in $(ls -1 | LC_ALL=C sort); do
+              [ "${f#SHA256SUMS}" = "$f" ] && sha256sum "$f" >> "$SUMS"
+          done
+          cat "$SUMS"
+
+      - name: Build (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $env:SOURCE_DATE_EPOCH = (Get-Content -Raw packaging/SOURCE_DATE_EPOCH).Trim()
+          $env:PYTHONHASHSEED = "0"
+          $env:PYTHONDONTWRITEBYTECODE = "1"
+          $env:TZ = "UTC"
+          $env:LC_ALL = "C.UTF-8"
+          pyinstaller --clean --noconfirm packaging/void-server.spec
+          pyinstaller --clean --noconfirm packaging/void.spec
+          $Version = (Get-Content -Raw VERSION).Trim()
+          Push-Location dist
+          Move-Item -Force void.exe        ("void-{0}-windows-x86_64.exe" -f $Version)
+          Move-Item -Force void-server.exe ("void-server-{0}-windows-x86_64.exe" -f $Version)
+          $sumsFile = "SHA256SUMS-windows-x86_64"
+          $files = Get-ChildItem | Where-Object { -not $_.Name.StartsWith("SHA256SUMS") } | Sort-Object Name
+          $lines = @()
+          foreach ($f in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower()
+            $lines += "$hash  $($f.Name)"
+          }
+          $lines | Out-File -Encoding ascii $sumsFile
+          Get-Content $sumsFile
+          Pop-Location
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: .github/RELEASE_NOTES.md
+          generate_release_notes: false
+          fail_on_unmatched_files: false
+          files: |
+            dist/void-*
+            dist/void-server-*
+            dist/SHA256SUMS-*
+
+  consolidate:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download every per-platform SHA256SUMS-* from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir sums
+          # GH API: list assets, then download each SHA256SUMS-*
+          TAG="${GITHUB_REF##*/}"
+          curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" \
+            > rel.json
+          for url in $(python -c "
+          import json
+          for a in json.load(open('rel.json'))['assets']:
+              if a['name'].startswith('SHA256SUMS-'):
+                  print(a['url'])"); do
+              curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+                   -H "Accept: application/octet-stream" \
+                   -o "sums/$(basename $url)" "$url"
+          done
+          # Merge all per-platform sums into one SHA256SUMS, sorted.
+          cat sums/* | LC_ALL=C sort > SHA256SUMS
+          echo "--- combined SHA256SUMS ---"
+          cat SHA256SUMS
+
+      - name: Upload combined SHA256SUMS
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: SHA256SUMS

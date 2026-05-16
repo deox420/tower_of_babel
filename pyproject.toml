@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "void-chat"
+version = "0.5.0"
+description = "VOID — ephemeral, end-to-end encrypted darkweb-aesthetic terminal messenger"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "0BSD" }
+authors = [{ name = "VOID contributors" }]
+keywords = ["messenger", "tor", "e2e", "encrypted", "ephemeral", "terminal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "textual>=0.60",
+    "cryptography>=42",
+    "websockets>=12",
+    "python-socks[asyncio]>=2.4",
+    "doubleratchet>=1.3,<2",
+    "x3dh>=1.3,<2",
+]
+
+[project.scripts]
+void = "client.__main__:main"
+void-server = "server.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/deox420/tower_of_babel"
+Source = "https://github.com/deox420/tower_of_babel"
+Issues = "https://github.com/deox420/tower_of_babel/issues"
+
+[tool.setuptools.packages.find]
+include = ["client*", "server*"]

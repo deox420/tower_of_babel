@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/deox420/tower_of_babel/blob/main/docs/SECURITY.md
+    about: For severe security issues, read SECURITY.md first.
+  - name: FAQ
+    url: https://github.com/deox420/tower_of_babel/blob/main/docs/FAQ.md
+    about: Common questions are usually answered here.

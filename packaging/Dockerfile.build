@@ -1,0 +1,51 @@
+# Reproducible build image for VOID.
+#
+# Build from the repository root (the build context is the repo root,
+# not packaging/):
+#   docker build -f packaging/Dockerfile.build -t void-build .
+#   docker run --rm -v "$PWD/dist:/src/dist" void-build
+
+FROM python:3.11.10-slim-bookworm
+
+ARG SOURCE_DATE_EPOCH=1747267200
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
+    PYTHONHASHSEED=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=UTC \
+    LC_ALL=C.UTF-8 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN python -m pip install --upgrade \
+        'pip==24.2' \
+        'setuptools==75.1.0' \
+        'wheel==0.44.0' \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        binutils \
+        coreutils \
+        gnupg \
+        libsodium-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Dependencies (cached layer).
+COPY requirements.txt requirements.lock* ./
+RUN if [ -f requirements.lock ]; then \
+        pip install --require-hashes -r requirements.lock; \
+    else \
+        pip install -r requirements.txt; \
+    fi \
+    && pip install 'pyinstaller==6.10.0'
+
+# Source.
+COPY VERSION ./
+COPY packaging/SOURCE_DATE_EPOCH ./
+COPY packaging/void.spec packaging/void-server.spec packaging/build.sh ./
+COPY client ./client
+COPY server ./server
+
+RUN chmod +x build.sh
+
+CMD ["./build.sh"]

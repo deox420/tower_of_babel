@@ -1,0 +1,56 @@
+name: Bug report
+description: Something broke. Help us reproduce it.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the failure.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The smallest sequence of commands or actions that triggers the issue.
+        Include the output of `void --setup` if relevant.
+      placeholder: |
+        1. void --make-invite
+        2. Paste link in second terminal running `void`
+        3. ENTER
+        4. ...
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "e.g. Linux x86_64 / macOS arm64 / Windows 11 / Termux"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: VOID version
+      placeholder: "Output of `void --setup` or the release tag (v0.5.0)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error messages
+      render: shell
+
+  - type: checkboxes
+    id: notsecret
+    attributes:
+      label: Confirmations
+      options:
+        - label: I did not paste any private key, room key, password, or `void://` invite link in this report.
+          required: true

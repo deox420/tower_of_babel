@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something new.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the gap or pain point, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        What would you like VOID to do? Keep in mind VOID rejects PRs that add
+        persistence, telemetry, weaker crypto, or "remember me" features.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

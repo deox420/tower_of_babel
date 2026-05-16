@@ -1,0 +1,178 @@
+Screen {
+    background: #000000;
+    color: #00ff9c;
+}
+
+Header {
+    background: #000000;
+    color: #00ff9c;
+    text-style: bold;
+}
+
+Footer {
+    background: #000000;
+    color: #6cdcff;
+}
+
+.title {
+    color: #00ff9c;
+    text-style: bold;
+}
+
+.sub {
+    color: #6cdcff;
+    text-style: dim;
+}
+
+.err {
+    color: #ff3860;
+    text-style: bold;
+}
+
+.ok {
+    color: #00ff9c;
+    text-style: bold;
+}
+
+.hint {
+    color: #6cdcff;
+    text-style: dim italic;
+}
+
+.center {
+    text-align: center;
+}
+
+.scanline {
+    color: #003a25;
+    text-style: dim;
+    text-align: center;
+}
+
+.blink-err {
+    color: #ff3860;
+    text-style: bold blink;
+}
+
+#transport {
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#status-footer {
+    background: #000000;
+    color: #6cdcff;
+    height: 1;
+    padding: 0 1;
+    border-top: solid #00ff9c 30%;
+}
+
+Input {
+    background: #000000;
+    color: #00ff9c;
+    border: solid #00ff9c 30%;
+}
+
+Input:focus {
+    border: solid #6cdcff;
+}
+
+Button {
+    background: #001a10;
+    color: #00ff9c;
+    border: solid #00ff9c 40%;
+}
+
+Button:hover {
+    background: #002a18;
+    border: solid #6cdcff;
+}
+
+#lobby-container {
+    align: center middle;
+    padding: 1 2;
+    width: 100%;
+    height: 100%;
+}
+
+#lobby-card {
+    width: 70;
+    height: auto;
+    border: solid #00ff9c 40%;
+    padding: 1 2;
+    background: #000000;
+}
+
+#logo {
+    color: #00ff9c;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#chat-log {
+    background: #000000;
+    color: #00ff9c;
+    border: solid #00ff9c 30%;
+    padding: 0 1;
+    height: 1fr;
+}
+
+#chat-input {
+    border: solid #6cdcff 50%;
+}
+
+#chat-header {
+    background: #000000;
+    color: #6cdcff;
+    border-bottom: solid #00ff9c 30%;
+    padding: 0 1;
+    height: 1;
+}
+
+#starmap {
+    background: #000000;
+    color: #00ff9c;
+}
+
+#starmap-footer {
+    background: #000000;
+    color: #6cdcff;
+    height: 1;
+    padding: 0 1;
+}
+
+#conn-container {
+    align: center middle;
+    padding: 1 2;
+    width: 100%;
+    height: 100%;
+}
+
+#conn-card {
+    width: 56;
+    height: auto;
+    border: solid #00ff9c 40%;
+    padding: 1 2;
+    background: #000000;
+}
+
+#welcome-container {
+    align: center middle;
+    padding: 1 2;
+    width: 100%;
+    height: 100%;
+}
+
+#welcome-card {
+    width: 72;
+    height: auto;
+    border: solid #6cdcff 50%;
+    padding: 1 2;
+    background: #000000;
+}
+
+#welcome-text {
+    color: #00ff9c;
+    padding: 1 0;
+}
+

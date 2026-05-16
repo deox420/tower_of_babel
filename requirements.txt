@@ -1,0 +1,6 @@
+textual>=0.60
+cryptography>=42
+websockets>=12
+python-socks[asyncio]>=2.4
+doubleratchet>=1.3,<2
+x3dh>=1.3,<2
