@@ -1,0 +1,54 @@
+{
+  "locale": "es",
+  "given": [
+    "Antonio", "Maria", "Manuel", "Carmen", "Jose", "Josefa", "Francisco", "Ana",
+    "David", "Isabel", "Juan", "Dolores", "Javier", "Pilar", "Daniel", "Teresa",
+    "Jose Antonio", "Rosa", "Francisco Javier", "Cristina", "Carlos", "Antonia",
+    "Alejandro", "Laura", "Jesus", "Marta", "Miguel", "Lucia", "Pedro", "Elena",
+    "Angel", "Rosario", "Rafael", "Sara", "Pablo", "Patricia", "Sergio", "Raquel",
+    "Fernando", "Manuela", "Jorge", "Beatriz", "Luis", "Alba", "Alberto", "Julia",
+    "Adrian", "Andrea", "Diego", "Irene", "Mateo", "Paula", "Hugo", "Claudia"
+  ],
+  "family": [
+    "Garcia", "Rodriguez", "Gonzalez", "Fernandez", "Lopez", "Martinez", "Sanchez",
+    "Perez", "Gomez", "Martin", "Jimenez", "Ruiz", "Hernandez", "Diaz", "Moreno",
+    "Munoz", "Alvarez", "Romero", "Alonso", "Gutierrez", "Navarro", "Torres",
+    "Dominguez", "Vazquez", "Ramos", "Gil", "Ramirez", "Serrano", "Blanco",
+    "Suarez", "Molina", "Morales", "Ortega", "Delgado", "Castro", "Ortiz",
+    "Rubio", "Marin", "Sanz", "Iglesias", "Nunez", "Medina", "Garrido", "Cortes",
+    "Castillo", "Santos", "Lozano", "Guerrero", "Cano", "Prieto"
+  ],
+  "bio_default": [
+    "Lector, paseante. Poco amigo del ruido.",
+    "Cafe corto, tardes largas. Pocos planes.",
+    "De provincias. Vine por trabajo, me quede por el barrio.",
+    "Mapas, libros viejos, perros ajenos.",
+    "Mas preguntas que respuestas."
+  ],
+  "bio_writer": [
+    "Articulos por encargo. Novela en el cajon. Imprenta sí.",
+    "Cronicas urbanas. Boletin cada quince dias.",
+    "Tres borradores antes de comer. Una linea decente al final.",
+    "Cuaderno, pluma, paciencia.",
+    "Periodismo lento. Pocas frases con signos de admiracion."
+  ],
+  "bio_trader": [
+    "Macro de dia, graficos de noche. Desconfio de los gurus.",
+    "Liquidez es una opcion. La paciencia tambien.",
+    "Leo actas del banco central por gusto. Opero menos.",
+    "Hojas de calculo y humor seco.",
+    "Riesgo bajo casi siempre."
+  ],
+  "bio_researcher": [
+    "Bibliografia primero. Replicacion antes que conclusiones.",
+    "Trabajando en un articulo que no se acaba solo.",
+    "Laboratorio, biblioteca, dormir si se puede.",
+    "Pregunto dos veces, contesto una.",
+    "Notas al pie, vista larga."
+  ],
+  "interests": [
+    "topologia", "cine en blanco y negro", "librerias de viejo", "trenes",
+    "mapas abiertos", "radios antiguas", "fermentacion", "liquenes",
+    "astronomia aficionada", "encuadernacion", "tipografia"
+  ]
+}

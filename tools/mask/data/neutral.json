@@ -1,0 +1,49 @@
+{
+  "locale": "neutral",
+  "given": [
+    "Alex", "Sam", "Jamie", "Robin", "Morgan", "Riley", "Quinn", "Taylor",
+    "Kai", "Sasha", "Noa", "Ariel", "Ren", "Yuki", "Mika", "Aki", "Nico",
+    "Reese", "Avery", "Sky", "Phoenix", "River", "Rowan", "Sage", "Dakota",
+    "Charlie", "Drew", "Emerson", "Finley", "Hayden", "Kendall", "Lane",
+    "Logan", "Parker", "Peyton", "Reagan", "Rory", "Skyler", "Tatum",
+    "Toby", "Wren", "Blake", "Casey", "Devon", "Ellis", "Frankie", "Gray",
+    "Harper", "Indie", "Jules", "Lior", "Marlowe", "Ocean", "Vesper"
+  ],
+  "family": [
+    "Ash", "Bay", "Bell", "Birch", "Brook", "Cole", "Cross", "Day", "Dean",
+    "Drift", "East", "Ellis", "Fane", "Fell", "Finch", "Frost", "Gale",
+    "Gray", "Greene", "Hale", "Hart", "Hayes", "Heath", "Holm", "Innes",
+    "Joist", "Kane", "Knox", "Lark", "Lock", "Lowe", "March", "Marsh",
+    "Mead", "Mercer", "Moss", "Neel", "North", "Oak", "Ord", "Pine",
+    "Plume", "Quay", "Rain", "Reed", "Ridge", "Roe", "Rook", "Salt", "Snow",
+    "Stone", "Vale", "Vance", "Vesper", "Wade", "Wren"
+  ],
+  "bio_default": [
+    "Working on quiet things.",
+    "Long walks, short posts.",
+    "Old internet, new books.",
+    "Trying to write less, mean more.",
+    "Off the timeline, mostly."
+  ],
+  "bio_writer": [
+    "Notebooks, drafts, the occasional finished piece.",
+    "Print is the medium. Fortnightly letter.",
+    "Slow journalism. Few certainties.",
+    "One sentence at a time. The rest follows."
+  ],
+  "bio_trader": [
+    "Macro and minutes. Cash is a position.",
+    "Spreadsheets, charts, dry humour.",
+    "Risk-off most days. Coffee anyway."
+  ],
+  "bio_researcher": [
+    "Citations first. Replication before claims.",
+    "Bench work, then library work, then sleep.",
+    "Asks twice. Answers once."
+  ],
+  "interests": [
+    "type theory", "old maps", "field recordings", "second-hand books",
+    "rail timetables", "lichens", "amateur astronomy", "bookbinding",
+    "typography", "fermentation"
+  ]
+}

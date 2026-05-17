@@ -1,9 +1,9 @@
-# Reproducible build image for VOID.
+# Reproducible build image for the Tower of Babel suite.
 #
 # Build from the repository root (the build context is the repo root,
 # not packaging/):
-#   docker build -f packaging/Dockerfile.build -t void-build .
-#   docker run --rm -v "$PWD/dist:/src/dist" void-build
+#   docker build -f packaging/Dockerfile.build -t babel-build .
+#   docker run --rm -v "$PWD/dist:/src/dist" babel-build
 
 FROM python:3.11.10-slim-bookworm
 
@@ -39,13 +39,14 @@ RUN if [ -f requirements.lock ]; then \
     fi \
     && pip install 'pyinstaller==6.10.0'
 
-# Source.
+# Source. Post-Phase-0 layout: VOID lives under tools/void/, and the
+# suite launcher + shared modules live alongside it.
 COPY VERSION ./
-COPY packaging/SOURCE_DATE_EPOCH ./
-COPY packaging/void.spec packaging/void-server.spec packaging/build.sh ./
-COPY client ./client
-COPY server ./server
+COPY packaging ./packaging
+COPY babel ./babel
+COPY shared ./shared
+COPY tools ./tools
 
-RUN chmod +x build.sh
+RUN chmod +x packaging/build.sh
 
-CMD ["./build.sh"]
+CMD ["./packaging/build.sh"]

@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
-# VOID — one-command setup for Linux / macOS / Termux.
+# Tower of Babel — one-command setup for Linux / macOS / Termux.
 #
 #   curl -sSL https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.sh | bash
 #
 # After this script finishes you can run:
-#   void                     # to join (paste a void://… invite)
-#   void --make-invite       # to host (prints a void://… line)
+#   babel                        # open the suite menu
+#   babel void                   # straight into VOID (paste a void://… invite)
+#   babel void --make-invite     # host a VOID room (prints a void:// link)
+#   void / void --make-invite    # legacy aliases, equivalent to the above
 #
 # The script:
 #   1. Detects the platform and package manager.
 #   2. Installs python3 and tor (asks for sudo only if needed).
 #   3. Drops a per-user torrc snippet enabling ControlPort 9051 + cookie auth.
 #   4. Starts tor in the background and waits for SOCKS + control ports.
-#   5. pip-installs VOID in user mode (no global pollution).
+#   5. pip-installs the suite in user mode (no global pollution).
 set -euo pipefail
 
 C_GREEN=$'\033[1;32m'; C_CYAN=$'\033[1;36m'; C_RED=$'\033[1;31m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
@@ -210,7 +212,13 @@ SRC_DIR="$HOME/.local/share/void"
 
 say "fetching VOID source → $SRC_DIR"
 if [ -d "$SRC_DIR/.git" ]; then
-    git -C "$SRC_DIR" pull --quiet --ff-only || true
+    # Force-pushes during the v1.0.0 hotfix iteration broke
+    # `pull --ff-only` for anyone who had cloned mid-cycle.  Reset
+    # hard against origin: this clone is install-managed, the user
+    # has no local commits to lose here.
+    git -C "$SRC_DIR" fetch --quiet --depth 1 origin main 2>/dev/null || true
+    git -C "$SRC_DIR" reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+    git -C "$SRC_DIR" clean -fdq >/dev/null 2>&1 || true
 else
     mkdir -p "$(dirname "$SRC_DIR")"
     git clone --depth 1 "$REPO_URL" "$SRC_DIR" >/dev/null
@@ -225,10 +233,10 @@ fi
 
 if [ "$IS_TERMUX" = "1" ]; then
     # On Termux, pydantic-core compiles from source — visible progress matters.
-    say "installing void-chat (Termux compiles pydantic-core from source, expect 3-8 min)..."
+    say "installing tower-of-babel (Termux compiles pydantic-core from source, expect 3-8 min)..."
     python3 -m pip install --user $PIP_BREAK -e "$SRC_DIR"
 else
-    say "installing void-chat (pip --user)..."
+    say "installing tower-of-babel (pip --user)..."
     python3 -m pip install --quiet --user $PIP_BREAK -e "$SRC_DIR" >/dev/null
 fi
 
@@ -258,19 +266,20 @@ if [ "$NEEDS_PATH" = "1" ]; then
     fi
 fi
 
-# Sanity check: is 'void' callable as a command? If not (pip's entry-point
+# Sanity check: is 'babel' callable as a command? If not (pip's entry-point
 # generation failed, or PATH is being filtered), tell the user the module path.
-VOID_BIN="$BIN_DIR/void"
-if [ ! -x "$VOID_BIN" ]; then
+# `void` is also installed as a legacy alias per pyproject.toml [project.scripts].
+BABEL_BIN="$BIN_DIR/babel"
+if [ ! -x "$BABEL_BIN" ]; then
     # Some Termux configurations install entry points to $PREFIX/bin instead.
-    if [ -x "$PREFIX/bin/void" ] 2>/dev/null; then
-        VOID_BIN="$PREFIX/bin/void"
+    if [ -x "$PREFIX/bin/babel" ] 2>/dev/null; then
+        BABEL_BIN="$PREFIX/bin/babel"
     else
-        VOID_BIN=""
+        BABEL_BIN=""
     fi
 fi
 
-ok "void installed"
+ok "babel installed (legacy 'void' alias also installed)"
 
 # ---------- summary --------------------------------------------------------
 
@@ -284,16 +293,21 @@ fi
 cat <<EOF
 
 ${C_GREEN}════════════════════════════════════════════════${C_RST}
-  VOID is ready.
+  Tower of Babel is ready.
+  ${C_DIM}confusion of tongues, by design${C_RST}
 
-  ${C_CYAN}To host a room (you'll get a void:// link to share):${C_RST}
-      void --make-invite
+  ${C_CYAN}Open the suite menu:${C_RST}
+      babel
 
-  ${C_CYAN}To join a room (paste the void:// link you received):${C_RST}
-      void
+  ${C_CYAN}Go straight into VOID (host a room):${C_RST}
+      babel void --make-invite
+
+  ${C_CYAN}Go straight into VOID (join a room):${C_RST}
+      babel void
 
   ${C_DIM}help inside the app:  press F1${C_RST}
-  ${C_DIM}quick health check:   void --setup${C_RST}
+  ${C_DIM}quick health check:   babel --setup${C_RST}
+  ${C_DIM}legacy aliases 'void' / 'void --make-invite' still work.${C_RST}
   ${PATH_NOTE}
 ${C_GREEN}════════════════════════════════════════════════${C_RST}
 

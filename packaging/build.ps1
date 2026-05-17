@@ -30,9 +30,9 @@ Write-Host "[void/build] PLATFORM=$Platform-$Arch"
 if (Test-Path dist)  { Remove-Item -Recurse -Force dist }
 if (Test-Path build) { Remove-Item -Recurse -Force build }
 
-$specDir = if (Test-Path "packaging\void.spec") { "packaging" } else { "." }
+$specDir = if (Test-Path "packaging\babel.spec") { "packaging" } else { "." }
 pyinstaller --clean --noconfirm (Join-Path $specDir "void-server.spec")
-pyinstaller --clean --noconfirm (Join-Path $specDir "void.spec")
+pyinstaller --clean --noconfirm (Join-Path $specDir "babel.spec")
 
 Push-Location dist
 $epoch = [int]$env:SOURCE_DATE_EPOCH
@@ -43,7 +43,7 @@ Get-ChildItem -Recurse | ForEach-Object {
     $_.LastAccessTimeUtc = $dt
 }
 
-foreach ($stem in @("void", "void-server")) {
+foreach ($stem in @("babel", "void-server")) {
     $candidates = @("$stem", "$stem.exe")
     foreach ($c in $candidates) {
         if (Test-Path $c) {

@@ -1,0 +1,57 @@
+{
+  "locale": "en",
+  "given": [
+    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
+    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph",
+    "Jessica", "Thomas", "Sarah", "Charles", "Karen", "Christopher", "Nancy",
+    "Daniel", "Margaret", "Matthew", "Lisa", "Anthony", "Betty", "Mark", "Helen",
+    "Donald", "Sandra", "Steven", "Donna", "Paul", "Carol", "Andrew", "Ruth",
+    "Joshua", "Sharon", "Kenneth", "Michelle", "Kevin", "Laura", "Brian", "Emily",
+    "Edward", "Kimberly", "Ronald", "Deborah", "Miriam", "Whitney", "Owen",
+    "Sloane", "Frances", "Theo"
+  ],
+  "family": [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
+    "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
+    "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
+    "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill",
+    "Flores", "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell",
+    "Mitchell", "Carter", "Roberts", "Whitlock", "Carmichael", "Holloway",
+    "Atwood", "Bramwell"
+  ],
+  "bio_default": [
+    "Tinkers with things. Mostly doesn't break them.",
+    "Reader, walker, sceptic of new tools.",
+    "Quiet hours. Loud convictions. Decent coffee.",
+    "Old enough to remember dialup. Patient about most things.",
+    "Likes maps. Hates traffic.",
+    "Reads more than posts. Posts more than expected."
+  ],
+  "bio_writer": [
+    "Longform essays. Coffee first, sentences second. Print is not dead.",
+    "Writes about cities that no longer exist. Newsletter once a fortnight.",
+    "Magazine work, mostly. Fiction on the side, badly.",
+    "Three drafts before lunch, one good sentence by dinner.",
+    "Notebook person. Carries the pen."
+  ],
+  "bio_trader": [
+    "Macro by day, charts by night. Suspicious of certainty.",
+    "Markets are stories told with numbers. Stays away from the loudest ones.",
+    "Risk-off most of the time. Cash is a position.",
+    "Reads central bank minutes for fun. Trades them less often.",
+    "Spreadsheets and dry humour."
+  ],
+  "bio_researcher": [
+    "Citations, footnotes, the long view. Posting reluctantly.",
+    "Working on a paper that will not finish itself.",
+    "Reads the bibliography first. Trusts replication.",
+    "Lab time, library time, sleep when permitted.",
+    "Asks the question twice. Answers it once."
+  ],
+  "interests": [
+    "topology", "type theory", "mid-century cinema", "secondhand bookshops",
+    "trains", "open-source maps", "old radios", "fermentation", "lichens",
+    "lock picking", "amateur astronomy", "bookbinding", "tape decks", "letterpress"
+  ]
+}

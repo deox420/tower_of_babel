@@ -1,0 +1,55 @@
+{
+  "locale": "de",
+  "given": [
+    "Peter", "Maria", "Michael", "Sabine", "Thomas", "Andrea", "Andreas",
+    "Petra", "Wolfgang", "Susanne", "Klaus", "Monika", "Stefan", "Birgit",
+    "Juergen", "Claudia", "Frank", "Brigitte", "Christian", "Karin", "Markus",
+    "Anna", "Martin", "Christine", "Uwe", "Heike", "Ralf", "Gabriele", "Werner",
+    "Stefanie", "Helmut", "Ursula", "Manfred", "Renate", "Joerg", "Annette",
+    "Dieter", "Silvia", "Bernd", "Beate", "Sebastian", "Ute", "Matthias",
+    "Christa", "Daniel", "Bettina", "Patrick", "Angelika", "Jan", "Manuela",
+    "Tim", "Lara", "Felix", "Sophie", "Noah", "Emma"
+  ],
+  "family": [
+    "Mueller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner",
+    "Becker", "Schulz", "Hoffmann", "Schaefer", "Koch", "Bauer", "Richter",
+    "Klein", "Wolf", "Schroeder", "Neumann", "Schwarz", "Zimmermann", "Braun",
+    "Krueger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner", "Schmitz",
+    "Krause", "Meier", "Lehmann", "Schmid", "Schulze", "Maier", "Koehler",
+    "Herrmann", "Koenig", "Walter", "Mayer", "Huber", "Kaiser", "Fuchs",
+    "Peters", "Lang", "Scholz", "Moeller", "Weiss", "Jung", "Hahn", "Schubert"
+  ],
+  "bio_default": [
+    "Leser, Wanderer, wenig Laerm.",
+    "Kurzer Kaffee, lange Nachmittage.",
+    "Aus der Provinz. Bleibe wegen des Viertels.",
+    "Karten, alte Buecher, fremde Hunde.",
+    "Mehr Fragen als Antworten."
+  ],
+  "bio_writer": [
+    "Auftragsartikel. Roman in der Schublade.",
+    "Stadtchroniken. Newsletter alle vierzehn Tage.",
+    "Drei Entwuerfe vor dem Mittag. Ein guter Satz am Abend.",
+    "Notizbuch, Fueller, Geduld.",
+    "Langsamer Journalismus. Wenige Ausrufezeichen."
+  ],
+  "bio_trader": [
+    "Makro tagsueber, Charts nachts. Misstraue Gewissheiten.",
+    "Cash ist eine Position. Geduld auch.",
+    "Lese Notenbankprotokolle zum Vergnuegen.",
+    "Tabellen und trockener Humor.",
+    "Meist risk-off."
+  ],
+  "bio_researcher": [
+    "Bibliographie zuerst. Replikation vor Schlussfolgerungen.",
+    "Arbeite an einem Aufsatz, der sich nicht von selbst beendet.",
+    "Labor, Bibliothek, Schlaf wenn moeglich.",
+    "Frage zweimal, antworte einmal.",
+    "Fussnoten, langer Blick."
+  ],
+  "interests": [
+    "Topologie", "Schwarzweissfilme", "Antiquariate", "Eisenbahnen",
+    "Open Maps", "alte Radios", "Fermentation", "Flechten",
+    "Amateurastronomie", "Buchbinden", "Typografie"
+  ]
+}

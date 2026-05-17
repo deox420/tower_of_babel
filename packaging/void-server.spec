@@ -13,7 +13,7 @@ src_root = os.path.abspath(os.path.join(os.path.dirname(SPEC), '..'))
 sys.path.insert(0, src_root)
 
 a = Analysis(
-    [os.path.join(src_root, 'server', '__main__.py')],
+    [os.path.join(src_root, 'tools', 'void', 'server', '__main__.py')],
     pathex=[src_root],
     binaries=[],
     datas=[],

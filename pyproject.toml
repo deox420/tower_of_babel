@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "void-chat"
+name = "tower-of-babel"
 version = "0.5.0"
-description = "VOID — ephemeral, end-to-end encrypted darkweb-aesthetic terminal messenger"
+description = "Tower of Babel -- privacy and anti-surveillance terminal suite (VOID, MASK, STRIP, CARRIER, MIRAGE)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "0BSD" }
-authors = [{ name = "VOID contributors" }]
-keywords = ["messenger", "tor", "e2e", "encrypted", "ephemeral", "terminal"]
+authors = [{ name = "Tower of Babel contributors" }]
+keywords = ["privacy", "tor", "e2e", "encrypted", "ephemeral", "terminal", "messenger", "steganography", "metadata"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -33,11 +33,29 @@ dependencies = [
     "python-socks[asyncio]>=2.4",
     "doubleratchet>=1.3,<2",
     "x3dh>=1.3,<2",
+    # STRIP (Phase 2): PDF metadata parser. Pure-Python, MIT, no deps.
+    "pypdf>=4.0",
+    # CARRIER (Phase 3): PNG cover handling (Pillow, BSD-3) + Argon2id
+    # reference implementation (argon2-cffi, MIT).
+    "Pillow>=10",
+    "argon2-cffi>=23",
+    # MASK (Phase 4): async HTTP with SOCKS5 transport for the
+    # temp-mail adapters (Tor-routed by default).
+    "httpx[socks]>=0.27",
 ]
 
 [project.scripts]
-void = "client.__main__:main"
-void-server = "server.__main__:main"
+# Suite entry point. New top-level command.
+babel = "babel.__main__:main"
+# Legacy aliases so existing muscle memory and docs keep working.
+# All three forward to babel.__main__:main, which dispatches based
+# on argv (see MASTER.md Section 4.1).
+void = "babel.__main__:main"
+strip = "babel.__main__:main"
+carrier = "babel.__main__:main"
+mask = "babel.__main__:main"
+mirage = "babel.__main__:main"
+void-server = "tools.void.server.main:main"
 
 [project.urls]
 Homepage = "https://github.com/deox420/tower_of_babel"
@@ -45,4 +63,7 @@ Source = "https://github.com/deox420/tower_of_babel"
 Issues = "https://github.com/deox420/tower_of_babel/issues"
 
 [tool.setuptools.packages.find]
-include = ["client*", "server*"]
+include = ["babel*", "shared*", "tools*"]
+
+[tool.setuptools.package-data]
+"tools.mask.data" = ["*.json"]

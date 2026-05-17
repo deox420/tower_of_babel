@@ -1,0 +1,56 @@
+{
+  "locale": "fr",
+  "given": [
+    "Jean", "Marie", "Pierre", "Catherine", "Michel", "Isabelle", "Andre",
+    "Francoise", "Philippe", "Martine", "Alain", "Christine", "Bernard",
+    "Monique", "Jacques", "Nathalie", "Daniel", "Sylvie", "Patrick", "Anne",
+    "Christophe", "Sandrine", "Thierry", "Veronique", "Eric", "Nicole", "Pascal",
+    "Valerie", "Frederic", "Brigitte", "Olivier", "Chantal", "Stephane", "Helene",
+    "Laurent", "Caroline", "Vincent", "Julie", "Nicolas", "Camille", "Antoine",
+    "Sophie", "Julien", "Emma", "Mathieu", "Chloe", "Romain", "Lea", "Maxime",
+    "Manon", "Lucas", "Sarah", "Hugo", "Clara"
+  ],
+  "family": [
+    "Martin", "Bernard", "Thomas", "Petit", "Robert", "Richard", "Durand",
+    "Dubois", "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Leroy",
+    "Roux", "David", "Bertrand", "Morel", "Fournier", "Girard", "Bonnet",
+    "Dupont", "Lambert", "Fontaine", "Rousseau", "Vincent", "Muller", "Lefevre",
+    "Faure", "Andre", "Mercier", "Blanc", "Guerin", "Boyer", "Garnier",
+    "Chevalier", "Francois", "Legrand", "Gauthier", "Garcia", "Perrin", "Robin",
+    "Clement", "Morin", "Nicolas", "Henry", "Roussel", "Mathieu", "Gautier",
+    "Masson"
+  ],
+  "bio_default": [
+    "Lecteur, marcheur, peu de bruit.",
+    "Cafe court, apres-midi longues.",
+    "De province. Reste pour le quartier.",
+    "Cartes, vieux livres, chiens des voisins.",
+    "Plus de questions que de reponses."
+  ],
+  "bio_writer": [
+    "Articles a la commande. Roman dans le tiroir.",
+    "Chroniques urbaines. Lettre tous les quinze jours.",
+    "Trois brouillons avant midi. Une bonne phrase au soir.",
+    "Carnet, stylo, patience.",
+    "Journalisme lent. Peu de points d'exclamation."
+  ],
+  "bio_trader": [
+    "Macro le jour, graphiques la nuit. Me mefie des certitudes.",
+    "Le cash est une position. La patience aussi.",
+    "Lit les minutes des banques centrales pour le plaisir.",
+    "Tableurs et humour sec.",
+    "Risque-off la plupart du temps."
+  ],
+  "bio_researcher": [
+    "Bibliographie d'abord. Replication avant conclusions.",
+    "Un article qui ne se finit pas tout seul.",
+    "Laboratoire, bibliotheque, sommeil si possible.",
+    "Pose la question deux fois, repond une.",
+    "Notes en bas de page, vue longue."
+  ],
+  "interests": [
+    "topologie", "cinema des annees cinquante", "librairies d'occasion",
+    "trains", "cartes ouvertes", "vieilles radios", "fermentation", "lichens",
+    "astronomie amateur", "reliure", "typographie"
+  ]
+}

@@ -36,8 +36,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: VOID version
-      placeholder: "Output of `void --setup` or the release tag (v0.5.0)"
+      label: Suite version
+      placeholder: "Output of `babel --setup` or the release tag (v1.0.0)"
     validations:
       required: true
 

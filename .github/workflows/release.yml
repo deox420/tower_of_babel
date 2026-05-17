@@ -56,27 +56,102 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller==6.10.0
+          set -e -o pipefail
+          python --version > install.log
+          pip --version >> install.log
+          {
+            python -m pip install --upgrade pip wheel setuptools
+            # Pin runtime deps to the exact versions verified locally
+            # (Python 3.11.9 venv on Windows + Python 3.14 on Windows).
+            # Letting >=X versions float on each runner has caused
+            # PyInstaller analysis to fail on newer Pillow / argon2
+            # releases; pinning sidesteps that.
+            pip install --no-cache-dir \
+              "textual==8.2.6" \
+              "cryptography==48.0.0" \
+              "websockets==16.0" \
+              "python-socks[asyncio]==2.8.1" \
+              "doubleratchet==1.3.0" \
+              "x3dh==1.3.0" \
+              "pypdf==6.11.0" \
+              "Pillow==11.0.0" \
+              "argon2-cffi==25.1.0" \
+              "httpx[socks]==0.28.1"
+            # Revert to the PyInstaller version that built v0.5.0
+            # successfully.  6.20 (which works locally on Python 3.14)
+            # exits non-zero during Analysis on the GH Actions Linux
+            # runner with Python 3.11; the cause is not visible without
+            # the build-log artifact -- the workflow uploads it on
+            # failure so we can iterate.
+            pip install --no-cache-dir pyinstaller==6.10.0
+            echo "--- pip list ---"
+            pip list
+            echo "--- imports ---"
+            python -c "import textual, cryptography, websockets, pypdf, PIL, argon2, httpx, socksio; print('runtime imports OK')"
+            python -c "import sys; sys.path.insert(0, '.'); import babel.__main__, shared.crypto.aead, tools.mask.pipeline, tools.carrier.pipeline, tools.strip.pipeline, tools.mirage.engine; print('suite modules import OK')"
+          } 2>&1 | tee -a install.log
 
-      - name: Build (Linux / macOS)
-        if: matrix.platform != 'windows'
+      - name: Upload install log (always, success or failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-log-${{ matrix.platform }}-${{ matrix.arch }}
+          path: install.log
+          retention-days: 14
+
+      - name: Build (all platforms via bash)
         shell: bash
         run: |
+          # One bash-based build step for every runner so the failure
+          # mode is uniform.  pwsh used to wrap PyInstaller's stderr
+          # INFO lines in NativeCommandError on Windows under
+          # $ErrorActionPreference=Stop, aborting the build before any
+          # binary was produced; bash via Git Bash sidesteps that.
+          set -x
           export SOURCE_DATE_EPOCH=$(cat packaging/SOURCE_DATE_EPOCH | tr -d '\n')
           export PYTHONHASHSEED=0
           export PYTHONDONTWRITEBYTECODE=1
           export TZ=UTC
           export LC_ALL=C.UTF-8
-          pyinstaller --clean --noconfirm packaging/void-server.spec
-          pyinstaller --clean --noconfirm packaging/void.spec
-          VERSION=$(cat VERSION | tr -d '\n')
+          # Run both pyinstaller invocations into build.log AND print
+          # the log inline at end of step so the GH Actions web view
+          # shows the full output (artifacts require auth to read).
+          set +e
+          {
+            echo "=== void-server.spec ==="
+            python -m PyInstaller --clean --noconfirm --log-level=INFO packaging/void-server.spec
+            VS_RC=$?
+            echo "=== void-server.spec exit=$VS_RC ==="
+            echo "=== babel.spec ==="
+            python -m PyInstaller --clean --noconfirm --log-level=INFO packaging/babel.spec
+            BS_RC=$?
+            echo "=== babel.spec exit=$BS_RC ==="
+          } 2>&1 | tee build.log
+          # Surface failure clearly
+          if grep -qE "(ERROR|Traceback|exit=[1-9])" build.log; then
+            echo ""
+            echo "===== BUILD FAILED -- last 80 lines of build.log ====="
+            tail -n 80 build.log
+            echo "===== END BUILD LOG ====="
+            exit 1
+          fi
+          set -e
+          # Strip CR as well as LF: the windows-latest runner has
+          # autocrlf=true on checkout, so VERSION arrives as "1.0.0\r\n".
+          # Without the \r strip the Windows asset name ends up as
+          # "babel-1.0.0.-windows-x86_64.exe" (extra dot from \r).
+          VERSION=$(cat VERSION | tr -d '\r\n')
+          SUFFIX="${{ matrix.artifact_suffix }}"
           cd dist
-          mv void void-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}
-          mv void-server void-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}
-          # Per-platform SHA256SUMS so parallel jobs don't collide on the
-          # release asset name. A separate 'consolidate' job below merges them.
+          # PyInstaller drops "babel" on Linux/macOS, "babel.exe" on
+          # Windows.  Rename to the per-platform release name.
+          if [ -f "babel${SUFFIX}" ]; then
+            mv "babel${SUFFIX}" "babel-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}${SUFFIX}"
+          fi
+          if [ -f "void-server${SUFFIX}" ]; then
+            mv "void-server${SUFFIX}" "void-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}${SUFFIX}"
+          fi
+          # Per-platform SHA256SUMS so parallel jobs don't collide.
           SUMS="SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}"
           : > "$SUMS"
           for f in $(ls -1 | LC_ALL=C sort); do
@@ -84,31 +159,29 @@ jobs:
           done
           cat "$SUMS"
 
-      - name: Build (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
+      - name: Upload build log (always, success or failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build.log
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Rename build.log per platform
+        if: always()
+        shell: bash
         run: |
-          $env:SOURCE_DATE_EPOCH = (Get-Content -Raw packaging/SOURCE_DATE_EPOCH).Trim()
-          $env:PYTHONHASHSEED = "0"
-          $env:PYTHONDONTWRITEBYTECODE = "1"
-          $env:TZ = "UTC"
-          $env:LC_ALL = "C.UTF-8"
-          pyinstaller --clean --noconfirm packaging/void-server.spec
-          pyinstaller --clean --noconfirm packaging/void.spec
-          $Version = (Get-Content -Raw VERSION).Trim()
-          Push-Location dist
-          Move-Item -Force void.exe        ("void-{0}-windows-x86_64.exe" -f $Version)
-          Move-Item -Force void-server.exe ("void-server-{0}-windows-x86_64.exe" -f $Version)
-          $sumsFile = "SHA256SUMS-windows-x86_64"
-          $files = Get-ChildItem | Where-Object { -not $_.Name.StartsWith("SHA256SUMS") } | Sort-Object Name
-          $lines = @()
-          foreach ($f in $files) {
-            $hash = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower()
-            $lines += "$hash  $($f.Name)"
-          }
-          $lines | Out-File -Encoding ascii $sumsFile
-          Get-Content $sumsFile
-          Pop-Location
+          if [ -f build.log ]; then
+            cp build.log "build-${{ matrix.platform }}-${{ matrix.arch }}.log"
+          fi
+
+      - name: Publish build log to Release (debug, on failure)
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: false
+          files: build-${{ matrix.platform }}-${{ matrix.arch }}.log
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -117,7 +190,7 @@ jobs:
           generate_release_notes: false
           fail_on_unmatched_files: false
           files: |
-            dist/void-*
+            dist/babel-*
             dist/void-server-*
             dist/SHA256SUMS-*
 

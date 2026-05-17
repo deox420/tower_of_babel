@@ -1,10 +1,16 @@
-# VOID - one-command setup for Windows (PowerShell 5.1+ / pwsh 7).
+# Tower of Babel - one-command setup for Windows (PowerShell 5.1+ / pwsh 7).
 #
 #   iwr -useb https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.ps1 | iex
 #
 # Installs Python 3.11 + Tor (via winget), drops a per-user torrc with
 # ControlPort 9051 + cookie auth, starts tor.exe in the background, and
-# pip-installs VOID. Re-run is safe; it skips anything already in place.
+# pip-installs the suite. Re-run is safe; it skips anything already in place.
+#
+# After this script finishes you can run:
+#   babel                        # open the suite menu
+#   babel void --make-invite     # host a VOID room
+#   babel void                   # join a VOID room
+#   void / void --make-invite    # legacy aliases, equivalent
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
@@ -177,13 +183,19 @@ $src  = Join-Path $env:LOCALAPPDATA 'void'
 
 if (Test-Path (Join-Path $src '.git')) {
     VSay ('updating existing source -> ' + $src)
-    & git -C $src pull --quiet --ff-only | Out-Null
+    # Force-pushes during the v1.0.0 hotfix iteration broke
+    # `pull --ff-only` for anyone who had cloned mid-cycle.  Reset
+    # hard against origin: this clone is install-managed, the user
+    # has no local commits to lose here.
+    & git -C $src fetch --quiet --depth 1 origin main 2>$null
+    & git -C $src reset --hard FETCH_HEAD 2>$null | Out-Null
+    & git -C $src clean -fdq 2>$null | Out-Null
 } else {
     VSay ('cloning VOID -> ' + $src)
     & git clone --depth 1 $repo $src | Out-Null
 }
 
-VSay 'installing void-chat (pip --user)...'
+VSay 'installing tower-of-babel (pip --user)...'
 & python -m pip install --quiet --user --upgrade pip | Out-Null
 & python -m pip install --quiet --user -e $src | Out-Null
 
@@ -194,31 +206,68 @@ $pyScripts = (& python -c $pyCode 2>$null)
 if ($pyScripts) { $pyScripts = $pyScripts.Trim() }
 
 if ($pyScripts -and (Test-Path $pyScripts)) {
+    # Extend the CURRENT session's PATH so `babel` works immediately
+    # after `iwr | iex` (without opening a new shell).
+    $currentParts = $env:PATH -split ';'
+    if ($currentParts -notcontains $pyScripts) {
+        $env:PATH = $env:PATH + ';' + $pyScripts
+    }
+    # Persist for future sessions via User PATH.
     $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
     if (-not $userPath) { $userPath = '' }
-    if (-not ($userPath -like ('*' + $pyScripts + '*'))) {
-        $newPath = $userPath + ';' + $pyScripts
+    $userParts = $userPath -split ';'
+    if ($userParts -notcontains $pyScripts) {
+        $newPath = if ($userPath) { $userPath + ';' + $pyScripts } else { $pyScripts }
         [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
+        VOk ('added ' + $pyScripts + ' to User PATH')
+    }
+    VOk ('babel binary in: ' + $pyScripts)
+
+    # Pull the freshly-set User PATH back into the session, then ALSO
+    # register Set-Alias fallbacks so `babel` / `void` resolve in this
+    # exact PowerShell process even if a host-specific PATH override
+    # (e.g. PSReadLine, a parent process snapshot) shadows the new
+    # entry.  This is the "you can name it directly" guarantee.
+    Refresh-Path
+    if (-not ($env:PATH -split ';' -contains $pyScripts)) {
         $env:PATH = $env:PATH + ';' + $pyScripts
-        VOk ('added ' + $pyScripts + ' to User PATH (open a new terminal to make it permanent)')
+    }
+    foreach ($name in @('babel', 'void')) {
+        $exePath = Join-Path $pyScripts ($name + '.exe')
+        if (Test-Path $exePath) {
+            Set-Alias -Name $name -Value $exePath -Scope Global -Force
+        }
     }
 }
 
-VOk 'void installed'
+# Final sanity: is `babel` discoverable in this session?
+$babelCmd = Get-Command babel -ErrorAction SilentlyContinue
+if ($babelCmd) {
+    VOk 'babel callable in this shell -- type `babel --setup` to verify'
+} else {
+    VWarn 'babel installed but not callable in this shell.'
+    VWarn ('Full path:  ' + (Join-Path $pyScripts 'babel.exe'))
+    VWarn 'Open a new PowerShell window (PATH refreshes on launch) and try again.'
+}
 
 # ---------- summary --------------------------------------------------------
 
 Write-Host ''
 Write-Host '===============================================' -ForegroundColor Green
-Write-Host '  VOID is ready.'
+Write-Host '  Tower of Babel is ready.'
+Write-Host '  confusion of tongues, by design'
 Write-Host ''
-Write-Host '  To host a room (prints a void:// link):' -ForegroundColor Cyan
-Write-Host '      void --make-invite'
+Write-Host '  Open the suite menu:' -ForegroundColor Cyan
+Write-Host '      babel'
 Write-Host ''
-Write-Host '  To join a room (paste the void:// link):' -ForegroundColor Cyan
-Write-Host '      void'
+Write-Host '  Host a VOID room (prints a void:// link):' -ForegroundColor Cyan
+Write-Host '      babel void --make-invite'
+Write-Host ''
+Write-Host '  Join a VOID room (paste the void:// link):' -ForegroundColor Cyan
+Write-Host '      babel void'
 Write-Host ''
 Write-Host '  help inside the app: press F1'
-Write-Host '  health check:        void --setup'
+Write-Host '  health check:        babel --setup'
+Write-Host '  legacy void / void --make-invite still work.'
 Write-Host '===============================================' -ForegroundColor Green
 Write-Host ''

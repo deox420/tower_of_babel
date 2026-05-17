@@ -11,7 +11,10 @@ dist/
 build/
 *.spec.bak
 *.tmp
-data/
+# (former blanket `data/` ignore removed in v1.0.0 -- it silently
+# excluded `tools/mask/data/*.json` from the repo and broke CI
+# PyInstaller builds.  If you need a local-only data dir, name it
+# explicitly under .gitignore.)
 .env
 .env.*
 *.onion
@@ -28,4 +31,14 @@ Thumbs.db
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-pentest/out/
+# pentest/ is local-only: developer-side adversarial harnesses
+# kept off the published repo per request.  Run them from a local
+# clone, do not commit the directory back.
+pentest/
+
+# Local scratch / scaffolding never meant for the repo.
+.git-msg.tmp
+.baseline-build.sh
+.step*.sh
+.run-*.sh
+.smoke*.py
