@@ -95,26 +95,40 @@ def _run_mirage(args: Sequence[str]) -> int:
 def _run_menu() -> int:
     """Launch ChromeApp with the suite menu mounted as the first view.
 
-    Multiplex flow (post-v1.0): the menu calls
-    ``app.enter_tool(name)`` which mounts the tool's home view INSIDE
-    the chrome content slot.  SERVICE-flavour tools (VOID, MIRAGE)
-    get registered in the slot model so the user can ``Alt+0``
-    background them and ``Alt+N`` come back.  ACTION-flavour tools
-    (MASK, STRIP, CARRIER) tear down on ``Esc``.
+    Multiplex flow (MASTER.md 4.4, docs/NAVIGATION.md):
+    every tool view mounts inside the chrome's content slot.
+    SERVICE-flavour tools (VOID, MIRAGE) get a numbered slot via
+    the registry, reachable with Alt+<digit>; ACTION-flavour tools
+    (MASK, STRIP, CARRIER) tear down on Esc.
 
-    Everything stays inside the single Textual app -- no more
-    exit-and-relaunch, no more lost state when switching tools.
-
-    The CLI surface for the actual operations (``babel strip file.png``,
-    ``babel void --make-invite``, etc.) is unchanged and bypasses
-    the chrome entirely.
+    Phase 7 v1.0 bridge: the VoidView lobby cannot run the chat /
+    connecting / starmap flows in-chrome yet (those are Screen
+    subclasses under tools/void/client/app.py).  When the user
+    submits the lobby, ``ChromeApp.void_session_bridge`` stashes
+    the args on the App and exits.  We catch that here and run the
+    legacy ``VoidApp`` against the populated arguments.  Subsequent
+    post-1.0 work removes this branch entirely.
     """
     from babel.menu import MainMenuView
     from babel.shell import ChromeApp
 
     app = ChromeApp(initial_view=MainMenuView(), version=_read_version())
     app.run()
-    # Nothing to dispatch on the way out -- everything happened inside.
+
+    # VOID session bridge: if the user submitted the lobby, relaunch
+    # the legacy VoidApp with the populated arguments.
+    args = getattr(app, "_void_session_args", None)
+    if args:
+        # Build the argv equivalent of "babel void <inferred flags>"
+        # so the existing CLI / lobby autofill path takes over.  The
+        # legacy lobby will re-show with the room + password + onion
+        # pre-set via the env hand-off below.
+        os.environ["BABEL_VOID_ROOM"] = str(args.get("room", ""))
+        os.environ["BABEL_VOID_PASSWORD"] = str(args.get("password", ""))
+        os.environ["BABEL_VOID_SERVER"] = str(args.get("server", ""))
+        os.environ["BABEL_VOID_ONION"] = str(args.get("onion", ""))
+        return _run_void([])
+
     return 0
 
 
