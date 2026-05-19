@@ -30,8 +30,14 @@ from __future__ import annotations
 import asyncio
 import datetime
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Protocol, runtime_checkable
+
+
+def _now() -> float:
+    """Wall-clock monotonic seconds.  Cheap; called by every tick."""
+    return time.monotonic()
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -421,6 +427,14 @@ class Chrome(Screen):
         self.registry = registry
         self._view_stack: list[Widget] = []
         self._pending_initial = initial_view
+        # Flash status used by docs/NAVIGATION.md section 5 (e.g.
+        # "MASK closed -- opening STRIP") and section 9 (the
+        # multiplex-hotkey nudge during the first 5 seconds on the
+        # menu).  Empty string means "fall back to the per-view
+        # hints"; ``_flash_until`` is a wall-clock deadline.
+        self._flash_text: str = ""
+        self._flash_until: float = 0.0
+        self._session_started_at: float = 0.0
 
     # ----- composition ------------------------------------------------------
 
@@ -436,9 +450,42 @@ class Chrome(Screen):
         # Defensive: register a one-shot refresh after layout so the
         # initial frame is correct on very small terminals (Termux).
         self.call_after_refresh(self._tick)
+        self._session_started_at = _now()
         if self._pending_initial is not None:
             view, self._pending_initial = self._pending_initial, None
             self.push_view(view)
+
+    # ----- flash status (NAVIGATION.md section 5 + 9) ----------------------
+
+    def flash(self, text: str, seconds: float = 4.0) -> None:
+        """Show ``text`` in the hints line for ``seconds`` then revert.
+
+        Used for transient messages like
+        ``"MASK closed -- opening STRIP"`` and the slots-full warning.
+        Suppressed when ``text`` is empty.
+        """
+        self._flash_text = text
+        self._flash_until = _now() + max(0.0, seconds)
+        self._tick()
+
+    def _flash_active(self) -> bool:
+        return bool(self._flash_text) and _now() < self._flash_until
+
+    def _boot_nudge_active(self) -> bool:
+        """Hint-bar nudge for the multiplex hotkeys.
+
+        Per docs/NAVIGATION.md section 9: shown on the menu for the
+        first 5 seconds after session start, suppressed on the
+        Termux 60-col floor.
+        """
+        if theme.is_very_compact():
+            return False
+        if self._session_started_at == 0.0:
+            return False
+        if _now() - self._session_started_at >= 5.0:
+            return False
+        visible = self.current_visible()
+        return type(visible).__name__ == "MainMenuView" if visible else False
 
     # ----- view stack -------------------------------------------------------
 
@@ -526,16 +573,26 @@ class Chrome(Screen):
     def _hints_text(self) -> str:
         """Context-sensitive hotkey strip.  Reflects the visible view.
 
-        Square brackets in the strings below are Rich markup
-        delimiters; rendering them literally requires either escaping
-        with backslashes (``\\[Esc\\]``) or disabling markup on the
-        widget.  We pre-escape here so the existing _HintsBar widget
-        (which has markup=True by default) doesn't eat the brackets.
+        Order of precedence (high -> low):
+
+        1. ``flash`` -- transient status set via ``Chrome.flash``
+           ("MASK closed -- opening STRIP", "slots full ...", etc.).
+        2. boot nudge -- the 5-second "<Alt+1..4> jump  <Ctrl+W> close"
+           line on the menu only (NAVIGATION.md section 9).
+        3. per-view hints based on the visible view's flavour.
+
+        Square brackets are Rich markup delimiters; we use angle
+        brackets in hint strings so a stray ``[Alt+]]`` doesn't get
+        eaten by the widget's markup parser.
         """
+        if self._flash_active():
+            return self._flash_text
         compact = self._is_compact()
         visible = self.current_visible()
         cls_name = type(visible).__name__ if visible is not None else ""
         flavour = getattr(visible, "flavour", None)
+        if cls_name == "MainMenuView" and self._boot_nudge_active():
+            return "<Alt+1..4> jump   <Alt+0> menu   <Ctrl+W> close   <F1> help"
 
         # Helper: wrap a key in angle brackets.  Square brackets are
         # Rich markup delimiters and trying to render `[Alt+]]` ends up
@@ -590,6 +647,10 @@ class Chrome(Screen):
         return f"{k('Ctrl+C')} quit"
 
     def _tick(self) -> None:
+        # Drop expired flash text so the next tick reverts to per-view
+        # hints without an explicit caller.
+        if self._flash_text and _now() >= self._flash_until:
+            self._flash_text = ""
         try:
             self.query_one("#babel-header", _HeaderBar).update(self._header_text())
             self.query_one("#babel-hints",  _HintsBar).update(self._hints_text())
@@ -619,14 +680,25 @@ class ChromeApp(App):
     TITLE = SUITE_NAME
     SUB_TITLE = "confusion of tongues, by design"
 
-    # Global hotkeys (MASTER.md 4.4 table).
+    # Global hotkeys (MASTER.md 4.4, docs/NAVIGATION.md section 2.1).
     #
-    # ``Alt+1..Alt+9``  jump to service slot N (no-op if empty)
-    # ``Alt+0``         return to the menu without closing services
-    # ``Alt+m``         open the menu as an overlay
-    # ``Alt+]`` / ``Alt+[``  cycle to next / previous active service
-    # ``Ctrl+w``        close current service (calls purge_local first)
-    # ``Ctrl+c`` / ``Ctrl+q``  quit the suite, purge every service
+    # Slot routing:
+    #   Alt+1..Alt+9    jump to SERVICE in slot N (no-op if empty)
+    #   Alt+0           return to menu (services keep running)
+    #   Alt+]/Alt+[     cycle next / previous SERVICE
+    #
+    # Suite overlays:
+    #   F1, Alt+H       help overlay (HelpOverlay)
+    #   Alt+M           slot switcher overlay (SlotSwitcherOverlay)
+    #
+    # New-instance:
+    #   Shift+1..5 OR the corresponding symbol-row characters
+    #   (!@#$%) -- needed on F-Droid Termux where Shift+digit may
+    #   not propagate.  Both shapes route to action_enter_tool_new.
+    #
+    # Termination:
+    #   Ctrl+W          close current SERVICE (calls purge_local)
+    #   Ctrl+C, Ctrl+Q  quit suite (purge_local on every SERVICE)
     BINDINGS = [
         Binding("alt+0", "menu_jump", "menu",      priority=True, show=False),
         Binding("alt+1", "slot_jump(1)", "slot 1", priority=True, show=False),
@@ -638,9 +710,26 @@ class ChromeApp(App):
         Binding("alt+7", "slot_jump(7)", "slot 7", priority=True, show=False),
         Binding("alt+8", "slot_jump(8)", "slot 8", priority=True, show=False),
         Binding("alt+9", "slot_jump(9)", "slot 9", priority=True, show=False),
-        Binding("alt+m", "menu_overlay", "menu",   priority=True, show=False),
+        Binding("alt+m", "slot_switcher", "switch", priority=True, show=False),
         Binding("alt+]", "cycle_next", "next",     priority=True, show=False),
         Binding("alt+[", "cycle_prev", "prev",     priority=True, show=False),
+        # Help overlay
+        Binding("f1",     "help_overlay", "help", priority=True, show=False),
+        Binding("alt+h",  "help_overlay", "help", priority=True, show=False),
+        # Shift+digit -> new instance.  Textual's modifier syntax for
+        # the digit row is "shift+1" etc.  Symbol-row fallbacks (!,
+        # @, #, $, %) cover the F-Droid Termux case where Shift+digit
+        # is not reachable from the soft keyboard.
+        Binding("shift+1",          "new_tool(1)", "new VOID",   priority=True, show=False),
+        Binding("shift+2",          "new_tool(2)", "new MASK",   priority=True, show=False),
+        Binding("shift+3",          "new_tool(3)", "new STRIP",  priority=True, show=False),
+        Binding("shift+4",          "new_tool(4)", "new CARRIER",priority=True, show=False),
+        Binding("shift+5",          "new_tool(5)", "new MIRAGE", priority=True, show=False),
+        Binding("exclamation_mark", "new_tool(1)", "new VOID",   priority=True, show=False),
+        Binding("at",               "new_tool(2)", "new MASK",   priority=True, show=False),
+        Binding("number_sign",      "new_tool(3)", "new STRIP",  priority=True, show=False),
+        Binding("dollar_sign",      "new_tool(4)", "new CARRIER",priority=True, show=False),
+        Binding("percent_sign",     "new_tool(5)", "new MIRAGE", priority=True, show=False),
         Binding("ctrl+w", "close_service", "close service",
                 priority=True, show=False),
         Binding("ctrl+c", "purge_quit", "quit",    priority=True, show=False),
@@ -658,6 +747,9 @@ class ChromeApp(App):
         self.registry = registry or ServiceRegistry()
         self._initial_view = initial_view
         self.chrome: Chrome | None = None
+        # Set by VoidView when the lobby submits and we need to hand
+        # off to the legacy VoidApp post-exit (Phase 7 v1.0 bridge).
+        self._void_session_args: dict | None = None
 
     def compose(self) -> ComposeResult:
         # No top-level widgets -- the App's only Screen is Chrome, pushed
@@ -695,77 +787,139 @@ class ChromeApp(App):
         if self.chrome is not None:
             self.chrome._tick()
 
-    def enter_tool(self, name: str) -> None:
-        """Mount the chosen tool's home view inside the chrome.
+    def enter_tool(
+        self, name: str, *, new_instance: bool = False,
+        prefill: dict | None = None,
+    ) -> None:
+        """Mount the chosen tool's view inside the chrome.
 
-        Multiplex semantics (MASTER.md 4.4):
+        Multiplex semantics (MASTER.md 4.4, NAVIGATION.md section 4
+        + 5):
 
-        * SERVICE-flavour tools (VOID, MIRAGE) get registered in the
-          ``ServiceRegistry`` on first entry.  Re-entering the same
-          tool while it's still in the registry brings its existing
-          view back into focus -- no second instance, no state loss.
-        * ACTION-flavour tools (MASK, STRIP, CARRIER) mount a fresh
-          view each time and are torn down when the user presses
-          ``Esc`` to return to the menu.
+        * SERVICE-flavour tools (VOID, MIRAGE) keep one numbered slot
+          per live instance.  Default re-entry focuses an existing
+          slot of the same name (no second instance, state intact).
+          Pass ``new_instance=True`` to force a fresh slot
+          (Shift+digit / symbol-row).
+        * ACTION-flavour tools (MASK, STRIP, CARRIER) are foreground
+          only.  Opening one tears down any currently-mounted ACTION
+          view first; a flash status announces the swap.
 
-        The previous (Phase-0) hand-off path called ``self.exit(...)``
-        and let ``babel.__main__`` re-launch the tool as a separate
-        Textual app.  That broke backgrounding and lost the
-        per-session chrome state; this method replaces it.
+        ``prefill`` is an optional dict the caller (typically the
+        menu's paste field) hands to ``view.prefill_invite`` /
+        ``prefill_link`` once mounted.
         """
         if self.chrome is None:
             return
-        # Import here to avoid an import cycle: babel.views imports
-        # babel.theme which the shell also imports at module load.
         from babel.views import view_class_for
 
         cls = view_class_for(name)
         if cls is None:
             return
+        flavour = getattr(cls, "flavour", "ACTION")
+        cls_name = getattr(cls, "name", name.upper())
 
-        # Reuse an existing service instance if it's still in a slot.
-        if cls.flavour == "SERVICE":
-            existing = self.registry.by_name(cls.name)
+        # SERVICE: focus existing slot unless the caller asked for
+        # a new instance.
+        if flavour == "SERVICE" and not new_instance:
+            existing = self.registry.by_name(cls_name)
             if existing is not None:
                 _idx, svc = existing
-                if isinstance(svc, Widget):
-                    self.chrome.show_existing(svc)
+                view = getattr(svc, "view", None)
+                if view is not None:
+                    self.chrome.show_existing(view)
                     try:
-                        svc.focus()
+                        view.focus()
+                    except Exception:
+                        pass
+                    self._apply_prefill(view, name, prefill)
+                    self._refresh_chrome()
+                    return
+
+        # ACTION: at most one foreground at a time.  Tear down any
+        # existing ACTION view first and announce the swap.
+        if flavour == "ACTION":
+            displaced = self._unmount_existing_action()
+            if displaced is not None:
+                self.chrome.flash(
+                    f"{displaced.upper()} closed -- opening {cls_name}"
+                )
+
+        view = cls()
+        if flavour == "SERVICE":
+            svc = getattr(view, "service", None)
+            if svc is not None:
+                try:
+                    self.registry.register(svc)
+                except RuntimeError:
+                    # Slot limit hit -- announce and bail before we
+                    # mount a view we can't track.
+                    self.chrome.flash(
+                        f"slots full ({self.registry.max_services}) "
+                        f"-- close one with Ctrl+W"
+                    )
+                    try:
+                        view.remove()
                     except Exception:
                         pass
                     self._refresh_chrome()
                     return
 
-        view = cls()
-        if cls.flavour == "SERVICE":
-            try:
-                self.registry.register(view)
-            except RuntimeError:
-                # Slot limit hit; surface the tool anyway, just
-                # unregistered (no badge, no Alt+N).
-                pass
         self.chrome.push_view(view)
+        self._apply_prefill(view, name, prefill)
         self._refresh_chrome()
+
+    def _unmount_existing_action(self) -> str | None:
+        """Tear down the currently-mounted ACTION view (if any).
+
+        Returns the name attribute of the displaced view, or None.
+        """
+        if self.chrome is None:
+            return None
+        for v in list(self.chrome._view_stack):
+            if getattr(v, "flavour", None) == "ACTION":
+                displaced_name = getattr(v, "name", type(v).__name__)
+                self.chrome._view_stack.remove(v)
+                try:
+                    v.remove()
+                except Exception:
+                    pass
+                return displaced_name
+        return None
+
+    def _apply_prefill(
+        self, view: Widget, tool: str, prefill: dict | None,
+    ) -> None:
+        """If ``prefill`` carries a link / data, hand it to the view."""
+        if not prefill:
+            return
+        link = prefill.get("link")
+        if not link:
+            return
+        if tool == "void":
+            fn = getattr(view, "prefill_invite", None)
+        else:
+            fn = getattr(view, "prefill_link", None)
+        if callable(fn):
+            try:
+                fn(link)
+            except Exception:
+                pass
 
     def leave_tool(self, view: Widget) -> None:
         """Tool view asks to be backgrounded / torn down.
 
-        Called from a ToolHomeView's Esc / Alt+0 handler.
+        Called from a view's Esc / Alt+0 binding.
 
-        SERVICE views: hidden but stay mounted in the slot + registry
-        so the user can ``Alt+N`` back into them with state intact.
+        SERVICE views: hidden but stay mounted; the registry slot
+        stays live so Alt+N comes back to the same state.
 
-        ACTION views: removed from the DOM + stack entirely (instance
-        is GC'd).  Either way we end with the menu visible and the
-        focus chain restored so the keyboard works again.
+        ACTION views: removed from the DOM + view stack entirely.
         """
         if self.chrome is None:
             return
         flavour = getattr(view, "flavour", "ACTION")
         if flavour == "ACTION":
-            # Tear down the action's widget before going to the menu so
-            # the next press of a digit doesn't reuse this view.
             if view in self.chrome._view_stack:
                 self.chrome._view_stack.remove(view)
             try:
@@ -796,34 +950,36 @@ class ChromeApp(App):
 
     # ----- hotkey actions ---------------------------------------------------
 
-    def action_slot_jump(self, index: int) -> None:
-        """Alt+N: jump to the service occupying slot N (if any).
+    def _slot_for_visible(self) -> int | None:
+        """Index of the registry slot whose ``service.view`` is currently visible."""
+        if self.chrome is None:
+            return None
+        visible = self.chrome.current_visible()
+        for s in self.registry.slots():
+            if getattr(s.service, "view", None) is visible:
+                return s.index
+        return None
 
-        Service instances ARE the widget (ToolHomeView subclasses
-        implement the Service protocol AND inherit from Vertical),
-        so the registry's service object can be used directly as the
-        target of ``show_existing``.
-        """
-        svc = self.registry.by_index(index)
-        if svc is None or self.chrome is None:
+    def action_slot_jump(self, index: int) -> None:
+        """Alt+N: focus the SERVICE in slot N (no-op if empty)."""
+        if self.chrome is None:
             return
-        if isinstance(svc, Widget):
-            self.chrome.show_existing(svc)
-            try:
-                svc.focus()
-            except Exception:
-                pass
-            self._refresh_chrome()
+        svc = self.registry.by_index(index)
+        if svc is None:
+            return
+        view = getattr(svc, "view", None)
+        if view is None:
+            return
+        self.chrome.show_existing(view)
+        try:
+            view.focus()
+        except Exception:
+            pass
+        self._refresh_chrome()
 
     def action_menu_jump(self) -> None:
         self.return_to_menu()
         self._refresh_chrome()
-
-    def action_menu_overlay(self) -> None:
-        # Phase 1: alias for menu_jump.  Overlay-without-leaving requires
-        # a dedicated overlay widget; deferred to whichever phase adds the
-        # first long-running service that benefits from it.
-        self.return_to_menu()
 
     def action_cycle_next(self) -> None:
         self._cycle(+1)
@@ -832,38 +988,40 @@ class ChromeApp(App):
         self._cycle(-1)
 
     def _cycle(self, direction: int) -> None:
+        if self.chrome is None:
+            return
         slots = self.registry.slots()
-        if not slots or self.chrome is None:
+        if not slots:
             return
         indices = [s.index for s in slots]
         visible = self.chrome.current_visible()
         try:
             cur = next(
-                s.index for s in slots if s.service is visible
+                s.index for s in slots
+                if getattr(s.service, "view", None) is visible
             )
             pos = indices.index(cur)
         except StopIteration:
-            pos = -direction   # next step lands on the first slot
+            pos = -direction
         nxt = indices[(pos + direction) % len(indices)]
         self.action_slot_jump(nxt)
 
     async def action_close_service(self) -> None:
-        """Ctrl+W: purge_local + unmount the current service."""
+        """Ctrl+W: purge + unmount the current service, or leave ACTION."""
         if self.chrome is None:
             return
         visible = self.chrome.current_visible()
         if visible is None:
             return
-        slot_idx: int | None = None
-        for s in self.registry.slots():
-            if s.service is visible:
-                slot_idx = s.index
-                break
+        flavour = getattr(visible, "flavour", None)
+        if flavour == "ACTION":
+            # Ctrl+W on an ACTION view == Esc: tear it down, go to menu.
+            self.leave_tool(visible)
+            return
+        slot_idx = self._slot_for_visible()
         if slot_idx is None:
             return
         await self.registry.close(slot_idx)
-        # Return to menu first so we don't try to display a torn-down
-        # widget; THEN remove it from the chrome's view stack.
         self.return_to_menu()
         if visible in self.chrome._view_stack:
             self.chrome._view_stack.remove(visible)
@@ -871,10 +1029,172 @@ class ChromeApp(App):
                 visible.remove()
             except Exception:
                 pass
+        self._refresh_chrome()
 
     async def action_purge_quit(self) -> None:
+        n = len(self.registry)
+        if n and self.chrome is not None:
+            self.chrome.flash(f"purging {n} service(s)...", seconds=4.0)
         try:
             await asyncio.wait_for(self.registry.close_all(), timeout=4.0)
         except asyncio.TimeoutError:
             pass
         self.exit()
+
+    # ----- new-instance + overlays + slot-switcher routing -----------------
+
+    def action_new_tool(self, digit: int) -> None:
+        """Shift+digit / symbol-row: spawn a NEW instance.
+
+        For SERVICE-flavour tools this opens a second VOID / second
+        MIRAGE / etc. in the next free slot.  For ACTION-flavour
+        tools it is identical to plain ``<digit>`` (you cannot have
+        two foreground actions anyway).
+        """
+        name = self._tool_for_digit(digit)
+        if name is None:
+            return
+        self.enter_tool(name, new_instance=True)
+
+    @staticmethod
+    def _tool_for_digit(d: int) -> str | None:
+        return {
+            1: "void", 2: "mask", 3: "strip", 4: "carrier", 5: "mirage",
+        }.get(d)
+
+    def action_help_overlay(self) -> None:
+        """F1 / Alt+H: open the help overlay over the current view."""
+        if self.chrome is None:
+            return
+        from shared.ui.overlay import (
+            HelpOverlay, KeyBinding, bindings_from_class, tagline_from_docstring,
+        )
+        visible = self.chrome.current_visible()
+        view_name = type(visible).__name__ if visible is not None else ""
+        view_tagline = (
+            tagline_from_docstring(type(visible)) if visible is not None else ""
+        )
+        view_bindings = (
+            bindings_from_class(type(visible)) if visible is not None else []
+        )
+        suite_bindings = self._suite_help_bindings()
+        self.push_screen(HelpOverlay(
+            suite_bindings=suite_bindings,
+            view_bindings=view_bindings,
+            view_name=view_name,
+            view_tagline=view_tagline,
+        ))
+
+    @staticmethod
+    def _suite_help_bindings() -> list:
+        """Canonical suite-level binding list shown in the help overlay.
+
+        Mirrors docs/NAVIGATION.md section 2.1 verbatim.
+        """
+        from shared.ui.overlay import KeyBinding
+        return [
+            KeyBinding("F1 / Alt+H",    "open this help"),
+            KeyBinding("Alt+M",          "slot switcher"),
+            KeyBinding("Alt+0",          "return to menu"),
+            KeyBinding("Alt+1..Alt+9",   "jump to SERVICE in slot N"),
+            KeyBinding("Alt+] / Alt+[",  "cycle next / prev SERVICE"),
+            KeyBinding("Shift+1..5",     "new instance of tool N"),
+            KeyBinding("Ctrl+W",         "close current SERVICE"),
+            KeyBinding("Ctrl+C / Ctrl+Q","quit suite (purges all)"),
+        ]
+
+    def action_slot_switcher(self) -> None:
+        """Alt+M: open the slot switcher overlay."""
+        if self.chrome is None:
+            return
+        from shared.ui.overlay import SlotSwitcherOverlay, SlotRow
+        rows: list[SlotRow] = []
+        for s in self.registry.slots():
+            try:
+                line = s.service.status_line()
+            except Exception:
+                line = "?"
+            rows.append(SlotRow(
+                index=s.index,
+                name=getattr(s.service, "name", "?"),
+                status=line,
+            ))
+        # Plus the foreground ACTION view, if any (one extra row).
+        action_view = self._current_action_view()
+        if action_view is not None:
+            rows.append(SlotRow(
+                index=0,
+                name=getattr(action_view, "name", type(action_view).__name__),
+                status="foreground action",
+                is_action=True,
+            ))
+        self.push_screen(SlotSwitcherOverlay(rows))
+
+    def _current_action_view(self) -> Widget | None:
+        if self.chrome is None:
+            return None
+        for v in self.chrome._view_stack:
+            if getattr(v, "flavour", None) == "ACTION":
+                return v
+        return None
+
+    def slot_switcher_jump(self, row) -> None:
+        """Overlay -> chrome callback: jump to the selected slot/action."""
+        if row is None or self.chrome is None:
+            return
+        if row.is_action:
+            v = self._current_action_view()
+            if v is not None:
+                self.chrome.show_existing(v)
+                try:
+                    v.focus()
+                except Exception:
+                    pass
+                self._refresh_chrome()
+            return
+        self.action_slot_jump(row.index)
+
+    def slot_switcher_close(self, row) -> None:
+        """Overlay -> chrome callback: close the selected slot/action."""
+        if row is None or self.chrome is None:
+            return
+        if row.is_action:
+            v = self._current_action_view()
+            if v is not None:
+                self.leave_tool(v)
+            return
+        async def _do() -> None:
+            await self.registry.close(row.index)
+            # If the closed slot's view was visible, return to menu.
+            self.return_to_menu()
+            self._refresh_chrome()
+        # Schedule on the running loop -- this callback can fire
+        # either from the overlay's action handler (running on the
+        # Textual loop) or, in tests, synchronously.
+        try:
+            asyncio.get_event_loop().create_task(_do())
+        except RuntimeError:
+            # No loop -- best effort: just clear the registry entry.
+            try:
+                self.registry._slots.pop(row.index, None)
+            except Exception:
+                pass
+
+    # ----- VOID's hand-off bridge (Phase 7 v1.0 bridge) --------------------
+
+    def void_session_bridge(self, args: dict) -> None:
+        """VoidView calls this when the user submits the lobby form.
+
+        Phase 7 v1.0 (see RELEASE_NOTES "Known deviations"):  the
+        chat / connecting / starmap flows still live as Textual
+        Screen subclasses under ``tools/void/client/app.py``.  Until
+        those are reborn as in-chrome views, we hand back to
+        ``babel.__main__`` to relaunch the legacy ``VoidApp`` with
+        the populated arguments.
+
+        Stashed on a class attribute the harness picks up post-exit;
+        the test harness can read it without a real Textual loop.
+        """
+        self._void_session_args = dict(args)
+        self.exit()
+

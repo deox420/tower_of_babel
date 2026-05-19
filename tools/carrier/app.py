@@ -28,6 +28,17 @@ from tools.carrier.core import wav as wav_core
 
 
 class CarrierView(Container):
+    """Steganography -- AES-256-GCM payload hidden in PNG/WAV LSB plane.
+
+    Mounted inside the babel chrome's content slot.  Action-flavoured:
+    Esc tears the view down and returns to the menu.  No slot.
+    """
+
+    name = "CARRIER"
+    flavour = "ACTION"
+    can_focus = True
+    service = None
+
     DEFAULT_CSS = f"""
     CarrierView {{
         background: {theme.BG};
@@ -98,7 +109,11 @@ class CarrierView(Container):
                 self._mode_line.update(self._mode_text())
 
     def action_leave(self) -> None:
-        self.app.exit()
+        leave = getattr(self.app, "leave_tool", None)
+        if callable(leave):
+            leave(self)
+        else:
+            self.app.exit()
 
     # ----- submit ----------------------------------------------------------
 
@@ -220,6 +235,38 @@ class CarrierView(Container):
             return
         self._status.update(text)
         self._status.set_classes(f"status {cls}".strip())
+
+    # ----- paste-routing entry (docs/NAVIGATION.md section 6) --------------
+
+    def prefill_link(self, url: str) -> None:
+        """Open in inspect mode and surface the carrier header.
+
+        Called by the chrome when the user pastes a ``carrier://`` URL
+        in the menu's paste field.  carrier:// is a metadata-only
+        scheme (MASTER.md 5.6); decoding gives the salt + nonce +
+        size triple, no payload.  We display the parsed body and
+        switch the view to inspect mode so the next submission
+        runs a chi-square check.
+        """
+        from shared.link.invite import decode as decode_link
+        from shared.link.invite import InvalidInvite
+        try:
+            link = decode_link(url)
+        except InvalidInvite as e:
+            self._set_status(f"invalid carrier:// link: {e}", "err")
+            return
+        self.mode = "inspect"
+        if self._mode_line is not None:
+            self._mode_line.update(self._mode_text())
+        # Show the header body to the user.  Tier-1 text only.
+        body = link.body
+        lines = [
+            f"  carrier:// header",
+            f"    fmt   {body.get('fmt', '?')}",
+            f"    size  {body.get('size', '?')} bytes",
+            f"    nonce {len((body.get('nonce') or ''))} chars",
+        ]
+        self._set_status("\n".join(lines), "")
 
 
 class CarrierApp(App):

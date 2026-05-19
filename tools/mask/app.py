@@ -35,6 +35,18 @@ from tools.mask.pipeline import (
 
 
 class MaskView(Container):
+    """Disposable identity generator -- alias, geometric avatar, bio, temp mail.
+
+    Mounted inside the babel chrome's content slot (MASTER.md 4.4).
+    Action-flavoured: pressing Esc tears the view down and returns
+    to the menu.  No slot in the registry, no footer contribution.
+    """
+
+    name = "MASK"
+    flavour = "ACTION"
+    can_focus = True
+    service = None    # ACTION views have no Service.
+
     DEFAULT_CSS = f"""
     MaskView {{
         background: {theme.BG};
@@ -149,11 +161,20 @@ class MaskView(Container):
         self._refresh_mode()
 
     def action_leave(self) -> None:
-        # Best-effort scrub before exit.
+        # Best-effort scrub before leaving.
         if self.identity is not None:
             self.identity.zeroize()
             self.identity = None
-        self.app.exit()
+        # When mounted inside the babel chrome (the menu path), hand
+        # control back to the chrome -- it knows whether to tear us
+        # down (ACTION) or background us (SERVICE).  When mounted
+        # under the legacy MaskApp wrapper (the `babel mask` CLI
+        # path), exit the app as before.
+        leave = getattr(self.app, "leave_tool", None)
+        if callable(leave):
+            leave(self)
+        else:
+            self.app.exit()
 
     def action_view_avatar(self) -> None:
         if self.identity is None:
@@ -242,6 +263,29 @@ class MaskView(Container):
             return
         self._status.update(text)
         self._status.set_classes(f"status {cls}".strip())
+
+    # ----- paste-routing entry (docs/NAVIGATION.md section 6) --------------
+
+    def prefill_link(self, url: str) -> None:
+        """Open the view in decode mode and show the parsed bundle.
+
+        Called by ``ChromeApp`` when the user pastes a ``mask://`` URL
+        into the menu's paste field.  Decoding failures surface as
+        a red status row; the view is still mounted (the user can
+        copy/correct the URL).
+        """
+        from tools.mask.link import parse as mask_parse
+        from shared.link.invite import InvalidInvite
+        try:
+            identity = mask_parse(url)
+        except InvalidInvite as e:
+            self._set_status(f"invalid mask:// link: {e}", "err")
+            return
+        self.identity = identity
+        self._render_identity()
+        if self._url_widget is not None:
+            self._url_widget.update(f"  mask://  {url}")
+        self._set_status("loaded from paste", "")
 
 
 class MaskApp(App):
