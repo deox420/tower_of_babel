@@ -393,6 +393,34 @@ design -- the user is on something smaller than a phone in
 portrait, and the chrome's footer + header + content cannot
 co-exist below that.
 
+### 10.1 - Smoke verification (Phase 7)
+
+The pure-string renderers are verified at three widths against
+the layouts above:
+
+```
+width=200  : slot bar shows full status text; help-overlay key
+             column is 18 cols wide; switcher rows are widely
+             spaced with (Alt+1) / (Alt+2) Alt-hints; footer
+             "* TOR :9050 -- * MEM mlock -- . CRYPTO idle -- ..."
+
+width=80   : same wide layout (the compact threshold is `< 80`,
+             so 80 itself is still wide); contents fit within
+             80 cols.
+
+width=60   : slot bar collapses to `[1:VOID] [2:MIRAGE]`;
+             footer collapses to `T* -- M* -- C. -- S* -- HH:MM`;
+             help-overlay key column is 12 cols and the bottom
+             line shortens to `<Esc> close`; slot switcher uses
+             `(A1)` / `(A2)` / `( -)` Alt-hints and the short
+             footer `<Ent> jump  <CtrlW> close  <Esc> back`.
+             Every output line is <= 60 cols.
+```
+
+The pentest suite (`pentest/babel/test_termux_60col.py`) walks
+every renderable surface and asserts the 60-col line-length
+invariant.
+
 ---
 
 ## 11 - Out of this doc

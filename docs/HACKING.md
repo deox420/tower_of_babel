@@ -12,6 +12,21 @@ and the rules for proposing changes.
 
 ---
 
+## A note on `pentest/`
+
+`pentest/` is in `.gitignore` -- the adversarial harnesses live
+locally, are run before merge, and never get pushed.  The Phase 7
+suite (44 tests at the time of writing) lives at
+`pentest/babel/test_*.py` + `pentest/babel/_helpers.py`.  It is
+pure-Python (no Textual imports) and runs via `pytest pentest/`
+from repo root.  The root `conftest.py` scrubs any sibling
+editable install of the suite off `sys.path` so tests always
+exercise the source tree.
+
+Test files are pinned in this developer's notes (HACKING.md, where
+you are reading this) so the next contributor knows what shape to
+recreate when they clone fresh.
+
 ## Local development loop
 
 1. Install with the appropriate `install.sh` / `install.ps1` /

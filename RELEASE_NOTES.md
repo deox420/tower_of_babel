@@ -155,6 +155,26 @@ not-yet-imported shared/ui modules, two TUI keybindings that point
 at the CLI rather than at unbuilt features).  None of these affect
 correctness or security; they shape the post-1.0 cleanup backlog.
 
+### Phase 7 (navigation) deviation: VOID lobby bridge
+
+Phase 7 makes the suite operable from `babel` alone -- the chrome
+mounts every tool's live surface, two `VOID`s can run side by
+side, paste auto-routes, slot-switcher + help overlays land on
+`Alt+M` / `F1`.
+
+One outstanding piece: VOID's `VoidView` is a lobby clone only.
+The chat / connecting / starmap flows still live as Textual
+`Screen` subclasses in `tools/void/client/app.py`.  Submitting
+the lobby calls `ChromeApp.void_session_bridge`, which exits the
+chrome and lets `babel.__main__` relaunch the legacy `VoidApp`
+with the populated args (via `BABEL_VOID_*` env vars).
+
+This is post-1.0 work: replace the bridge with a push_view-style
+in-chrome flow so `Alt+0` from a live chat sends you back to the
+menu (today the chat owns the terminal until `/leave` or `/burn`).
+Tracked in `docs/NAVIGATION.md` section 4 and `CHANGELOG.md`'s
+Phase 7 stanza.
+
 ## Licence
 
 0BSD.  Verbatim.  Do whatever.  No warranty.
