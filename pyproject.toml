@@ -65,5 +65,11 @@ Issues = "https://github.com/deox420/tower_of_babel/issues"
 [tool.setuptools.packages.find]
 include = ["babel*", "shared*", "tools*"]
 
+[tool.pytest.ini_options]
+# Pin the working tree to the head of sys.path so any sibling
+# installation of ``tower-of-babel`` in site-packages does not
+# shadow the source tree during pentest collection.
+pythonpath = ["."]
+
 [tool.setuptools.package-data]
 "tools.mask.data" = ["*.json"]

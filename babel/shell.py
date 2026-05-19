@@ -137,13 +137,19 @@ class ServiceRegistry:
     # ----- mutation ---------------------------------------------------------
 
     def register(self, service: Service) -> int:
-        """Insert ``service`` in the lowest free slot.  Raises if full."""
+        """Insert ``service`` in the lowest free slot.  Raises if full.
+
+        Phase 7 multi-instance: multiple slots with the same
+        ``service.name`` are now permitted (two VOIDs, two MIRAGEs).
+        Callers that need "focus existing, don't spawn new" go
+        through ``ChromeApp.enter_tool(name)`` which consults
+        ``by_name`` first; the Shift+digit / symbol-row path passes
+        ``new_instance=True`` to bypass that check and land here.
+        """
         if self.is_full():
             raise RuntimeError(
                 f"babel: service slot limit ({self.max_services}) reached"
             )
-        if self.by_name(service.name) is not None:
-            raise RuntimeError(f"babel: service {service.name!r} already registered")
         for i in range(1, self.max_services + 1):
             if i not in self._slots:
                 self._slots[i] = _Slot(index=i, service=service)
