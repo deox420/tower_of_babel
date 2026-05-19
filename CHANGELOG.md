@@ -2,6 +2,100 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased -- 2026-05-19  (Phase 7: navigation + multi-instance)
+
+The v1.0.0 suite was functionally complete but navigationally
+rough -- tool home views were info stubs, only one tool could
+run at a time, and pasting an invite link in the menu did
+nothing.  This phase makes the suite operable end-to-end from
+`babel` alone.
+
+### Navigation
+
+- Tool home views (`babel/views.py`) drop the Phase-1 info stubs
+  and now mount the live tool surface directly (`VoidView`,
+  `MaskView`, `StripView`, `CarrierView`, `MirageView`).  The
+  chrome's `enter_tool` mounts the view inside the content slot
+  -- no more `self.exit` and relaunch.  Per-tool surfaces lazily
+  import their heavy deps so `babel` boot stays fast.
+- `F1` / `Alt+H` opens a help overlay that auto-discovers the
+  visible view's `BINDINGS` plus the suite-level keys.
+- `Alt+M` opens a slot-switcher overlay listing every live
+  service + the foreground action.  `Enter` jumps, `Ctrl+W`
+  closes, `Esc` returns.
+- The main menu accepts pasted `void://` / `mask://` /
+  `carrier://` links and routes them with `prefill` to the right
+  tool.  Routing goes through `shared.link.invite.looks_like`
+  (no per-tool prefix detection).
+- Live slot state shows in the menu: a tool whose SERVICE is
+  alive renders with `(live in slot N)` in cyan.
+- Boot nudge: the menu's hints line shows
+  `<Alt+1..4> jump  <Alt+0> menu  <Ctrl+W> close  <F1> help` for
+  the first 5 seconds of a session (suppressed on the Termux
+  60-col floor).
+
+### Multi-instance
+
+- Two `VOID`s (or `MIRAGE`s, or a mix) coexist in distinct
+  slots.  Default digit re-entry focuses the existing slot;
+  `Shift+<digit>` or the symbol-row fallback (`!`, `@`, `#`,
+  `$`, `%`) forces a new instance.
+- `BABEL_MAX_SERVICES` (default 4) caps the slot count.  Beyond
+  the cap, new-instance attempts flash
+  `"slots full -- close one with Ctrl+W"` and refuse gracefully.
+- `Ctrl+W` purges the current SERVICE (calls `purge_local`
+  under the 1-second cooperative budget) and frees its slot;
+  other services keep running.  `Ctrl+C` / `Ctrl+Q` quits the
+  suite and purges every SERVICE in parallel inside the 4-second
+  budget from MASTER.md 4.4.
+
+### Architecture
+
+- Service Protocol is implemented by a *separate* object owned
+  by the View (`view.service`), per the 2026-05-19 FORGE
+  decision in `docs/ARCHITECTURE.md`.  Pentest tests exercise
+  the Protocol without importing Textual.
+- New module `shared/ui/overlay.py`: pure-string renderers
+  (`render_help`, `render_slot_switcher`, `bindings_from_class`,
+  `tagline_from_docstring`) + lazy Textual widget wrappers.
+- New doc `docs/NAVIGATION.md`: 11-section navigation spec --
+  every view, every binding, every transition, the SERVICE vs
+  ACTION flow, the 60x20 Termux downgrades, the ASCII state
+  diagram.
+
+### Known deviations from Phase 7 spec
+
+The VOID `*View` is a lobby-only surface.  The chat / connecting /
+starmap flows still live in `tools/void/client/app.py` as
+Textual `Screen` subclasses.  Submitting the lobby in-chrome
+calls `ChromeApp.void_session_bridge`, which exits the chrome
+and lets `babel.__main__` relaunch the legacy `VoidApp` with
+the populated args (via `BABEL_VOID_*` env handoff).  Rewiring
+the full session into a `push_view`-style flow is post-1.0 work
+and tracked in `RELEASE_NOTES.md`.
+
+The main menu's `[h]` (3-panel first-time wizard) and `[s]`
+(TUI setup aggregator) bindings remain absent -- same status
+as v1.0.0.  `babel --help` and `babel --setup` cover both from
+the CLI.
+
+### Tests
+
+`pentest/babel/test_*.py` adds 44 tests (no Textual imports)
+covering:
+- every transition in NAVIGATION.md
+- two VOIDs, two MIRAGEs, mixed, slot-full refusal
+- paste routing for every scheme + garbage rejection
+- help-overlay binding auto-discovery + 60-col render
+- slot-switcher render + jump/close callbacks
+- every renderable line at the Termux 60-col floor
+- 4-second purge budget for parallel-close on quit
+
+`pentest/` itself stays `.gitignore`d per the project convention;
+the harness is reproducible from the source tree.
+
+---
+
 ## v1.0.0 — 2026-05-17  (Tower of Babel -- first suite release)
 
 VOID stops being a single tool and becomes the first room of the

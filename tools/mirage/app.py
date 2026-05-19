@@ -38,7 +38,23 @@ _PROFILE_NAMES = [s.name for s in list_profiles()]
 
 
 class MirageView(Container):
-    """The mounted view.  Mounts inside ``babel.shell.Chrome`` content slot."""
+    """Cover-traffic generator.  Real httpx requests, hard rate caps.
+
+    Mounted inside the babel chrome's content slot.  Service-flavoured:
+    the view stays alive when the user backgrounds it (Alt+0), occupies
+    one numbered slot in the chrome's ``ServiceRegistry``, and feeds
+    the chrome's footer aggregate (TOR indicator when Tor is on).
+
+    The Service Protocol is implemented by a separate ``_MirageBoundService``
+    instance assigned to ``self.service`` -- the chrome's registry holds
+    the Service, not the widget, so pentest can drive the protocol
+    without importing Textual (docs/ARCHITECTURE.md decision log
+    2026-05-19).
+    """
+
+    name = "MIRAGE"
+    flavour = "SERVICE"
+    can_focus = True
 
     DEFAULT_CSS = f"""
     MirageView {{
@@ -83,6 +99,10 @@ class MirageView(Container):
         self._status_line: Static | None = None
         self._snapshot_line: Static | None = None
         self._events_widget: Static | None = None
+        # Service protocol -- a plain Python adapter the chrome's
+        # registry holds.  The engine is None until [s], so its
+        # status_line / footer_contribution report idle until then.
+        self.service = _MirageBoundService(self)
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -232,6 +252,15 @@ class MirageView(Container):
         self._set_status("NEWNYM requested", "")
 
     def action_leave(self) -> None:
+        # In-chrome path: hand back to the menu.  Engine keeps
+        # running -- the slot stays live in the registry.  Ctrl+W
+        # (or chrome's quit handler) is what calls purge_local().
+        leave = getattr(self.app, "leave_tool", None)
+        if callable(leave):
+            leave(self)
+            return
+        # Standalone MirageApp path (`babel mirage start`): drain
+        # the engine then exit the app.
         if self.engine is not None:
             self.run_worker(self._purge_then_exit(), exclusive=True)
         else:
@@ -296,6 +325,74 @@ def _fmt_event(e: Event) -> str:
         f"{e.bytes_in / 1024:5.1f} KB  {e.duration_ms:5.0f} ms  "
         f"({e.status})"
     )
+
+
+class _MirageBoundService:
+    """Service-protocol adapter bound to a live ``MirageView``.
+
+    The view ``self.engine`` is None until the user presses ``[s]``;
+    until then the service reports idle.  ``purge_local`` stops the
+    engine (cooperative, <1s) and clears the view's reference so a
+    later Alt+N to this slot starts clean.
+
+    Kept inline in this module (not in ``service.py``) so the view
+    and its service share lifetime + state by construction.
+    """
+
+    name = "MIRAGE"
+
+    def __init__(self, view: "MirageView") -> None:
+        self.view = view
+        self._purged = False
+
+    def _eng(self) -> "MirageEngine | None":
+        return getattr(self.view, "engine", None)
+
+    def status_line(self) -> str:
+        eng = self._eng()
+        if eng is None or not eng.is_running():
+            return "idle"
+        snap = eng.snapshot()
+        up = max(1.0, float(snap.get("uptime_sec", 1.0)))
+        reqs = int(snap.get("requests", 0))
+        bytes_in = int(snap.get("bytes_in", 0))
+        kbpm = int((bytes_in / 1024.0) / (up / 60.0))
+        rpm = int(reqs / (up / 60.0))
+        if snap.get("paused"):
+            return f"paused {reqs} reqs"
+        return f"{rpm} rpm {kbpm} KB/min"
+
+    def footer_contribution(self) -> dict[str, str]:
+        eng = self._eng()
+        if eng is None or not eng.is_running():
+            return {}
+        contrib: dict[str, str] = {}
+        if getattr(eng.config, "use_tor", False):
+            contrib["TOR"] = "on"
+        return contrib
+
+    async def purge_local(self) -> None:
+        if self._purged:
+            return
+        eng = self._eng()
+        if eng is not None:
+            try:
+                await asyncio.wait_for(eng.stop(), timeout=0.95)
+            except (asyncio.TimeoutError, Exception):
+                pass
+        try:
+            self.view.engine = None
+        except Exception:
+            pass
+        self._purged = True
+
+    def resource_caps(self) -> dict[str, float]:
+        cfg = self.view.config
+        return {
+            "bandwidth_kbps": float(cfg.bw_kbps),
+            "rate_rpm":       float(cfg.rate_rpm),
+            "cpu_pct":        float(cfg.cpu_pct),
+        }
 
 
 class MirageApp(App):

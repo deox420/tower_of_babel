@@ -27,7 +27,17 @@ from tools.strip.pipeline import SUPPORTED_EXTENSIONS, strip_path
 
 
 class StripView(Container):
-    """STRIP's main screen contents (no chrome of its own)."""
+    """Metadata laundry -- EXIF / XMP / IPTC / Office props / ID3 / PDF.
+
+    Mounted inside the babel chrome's content slot.  Action-flavoured:
+    Esc tears the view down and returns to the menu.  Has no Service
+    in the chrome's slot registry.
+    """
+
+    name = "STRIP"
+    flavour = "ACTION"
+    can_focus = True
+    service = None
 
     DEFAULT_CSS = f"""
     StripView {{
@@ -121,7 +131,15 @@ class StripView(Container):
         self._refresh_modes()
 
     def action_leave(self) -> None:
-        self.app.exit()
+        # In-chrome path: hand control back to the menu without
+        # killing the rest of the suite.  Legacy `babel strip` CLI
+        # path still has only the standalone StripApp running, so
+        # falls through to exit().
+        leave = getattr(self.app, "leave_tool", None)
+        if callable(leave):
+            leave(self)
+        else:
+            self.app.exit()
 
     def _refresh_modes(self) -> None:
         widget = self.query_one("#modes", Static)
