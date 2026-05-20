@@ -15,6 +15,36 @@
 #   3. Drops a per-user torrc snippet enabling ControlPort 9051 + cookie auth.
 #   4. Starts tor in the background and waits for SOCKS + control ports.
 #   5. pip-installs the suite in user mode (no global pollution).
+
+# POSIX preamble: if we were invoked under a non-bash shell (e.g.
+# `curl ... | sh` on Termux, where sh is dash), re-execute under bash.
+# `set -o pipefail` and the rest of the script require bash, so this
+# block uses ONLY POSIX features.
+if [ -z "${BASH_VERSION-}" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        # When invoked as `sh ./install.sh`, $0 points at a real file and
+        # we can simply re-exec. When piped from curl, $0 is "sh" / "dash"
+        # and stdin has already been consumed by the parser, so re-exec
+        # isn't possible — print a clear error with the correct command.
+        case "$0" in
+            sh|-sh|dash|-dash|ash|-ash|/bin/sh|/bin/dash|/bin/ash) ;;
+            *)
+                if [ -r "$0" ]; then
+                    exec bash "$0" "$@"
+                fi
+                ;;
+        esac
+    fi
+    printf 'ERROR: Tower of Babel installer requires bash.\n\n' >&2
+    if command -v bash >/dev/null 2>&1; then
+        printf 'It looks like you piped this script into a non-bash shell. Re-run with bash:\n' >&2
+    else
+        printf 'bash is not installed. On Termux: pkg install bash, then re-run with bash:\n' >&2
+    fi
+    printf '  curl -sSL https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.sh | bash\n' >&2
+    exit 1
+fi
+
 set -euo pipefail
 
 C_GREEN=$'\033[1;32m'; C_CYAN=$'\033[1;36m'; C_RED=$'\033[1;31m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
