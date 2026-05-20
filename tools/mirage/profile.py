@@ -23,13 +23,20 @@ profile is a one-tuple entry plus a ``PROFILE_SITES`` row in
 """
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 
 
 # Locales recognised by both MASK and MIRAGE.  Kept in sync with
 # ``tools.mask.alias.LOCALES`` deliberately -- the user expects the
 # locale string to mean the same thing across the suite.
 LOCALES: tuple[str, ...] = ("en", "es", "fr", "de", "neutral")
+
+
+# Where user-saved profiles live. One TOML file per profile, named
+# after `spec.name`. The directory is created on first save.
+USER_PROFILES_DIR = Path.home() / ".babel" / "mirage_profiles"
 
 
 @dataclass(frozen=True)
@@ -116,24 +123,123 @@ PROFILES: dict[str, ProfileSpec] = {
 }
 
 
+_BUILTIN_ORDER = ("office_worker", "developer", "casual_browser", "researcher")
+
+
+def _spec_from_dict(data: dict) -> ProfileSpec:
+    """Build a ProfileSpec from a TOML dict. Raises ValueError on bad input."""
+    try:
+        return ProfileSpec(
+            name=str(data["name"]),
+            description=str(data.get("description", "")),
+            rpm_typical=(int(data["rpm_typical"][0]),
+                         int(data["rpm_typical"][1])),
+            dwell_seconds=(float(data["dwell_seconds"][0]),
+                           float(data["dwell_seconds"][1])),
+            sites_key=str(data["sites_key"]),
+            accept_language=dict(
+                data.get("accept_language", _ACCEPT_LANGUAGE)
+            ),
+            user_agents=tuple(
+                str(u) for u in data.get("user_agents", _COMMON_UAS)
+            ),
+        )
+    except (KeyError, IndexError, TypeError, ValueError) as e:
+        raise ValueError(f"malformed profile TOML: {e}") from e
+
+
+def _spec_to_dict(spec: ProfileSpec) -> dict:
+    return {
+        "name": spec.name,
+        "description": spec.description,
+        "rpm_typical": list(spec.rpm_typical),
+        "dwell_seconds": list(spec.dwell_seconds),
+        "sites_key": spec.sites_key,
+        # accept_language and user_agents are persisted so a profile
+        # is fully self-contained when the user edits them later.
+        "accept_language": dict(spec.accept_language),
+        "user_agents": list(spec.user_agents),
+    }
+
+
+def load_user_profiles() -> list[ProfileSpec]:
+    """Read user-saved profiles from USER_PROFILES_DIR.
+
+    Returns an empty list when the directory doesn't exist or is
+    empty. Files that fail to parse are skipped silently (a future
+    revision could surface a warning to the UI).
+    """
+    if not USER_PROFILES_DIR.is_dir():
+        return []
+    specs: list[ProfileSpec] = []
+    for path in sorted(USER_PROFILES_DIR.glob("*.toml")):
+        try:
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+            specs.append(_spec_from_dict(data))
+        except (OSError, tomllib.TOMLDecodeError, ValueError):
+            continue
+    return specs
+
+
+def save_user_profile(spec: ProfileSpec) -> Path:
+    """Persist ``spec`` to ``USER_PROFILES_DIR/<spec.name>.toml``.
+
+    Writes a hand-rolled minimal TOML (stdlib tomllib only reads,
+    doesn't write). The directory is created on first save.
+    """
+    USER_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    path = USER_PROFILES_DIR / f"{spec.name}.toml"
+    lines: list[str] = [
+        f'name = "{_toml_escape(spec.name)}"',
+        f'description = "{_toml_escape(spec.description)}"',
+        f"rpm_typical = [{spec.rpm_typical[0]}, {spec.rpm_typical[1]}]",
+        f"dwell_seconds = [{spec.dwell_seconds[0]}, {spec.dwell_seconds[1]}]",
+        f'sites_key = "{_toml_escape(spec.sites_key)}"',
+        "",
+        "[accept_language]",
+    ]
+    for k, v in spec.accept_language.items():
+        lines.append(f'{k} = "{_toml_escape(v)}"')
+    lines.append("")
+    lines.append("user_agents = [")
+    for ua in spec.user_agents:
+        lines.append(f'  "{_toml_escape(ua)}",')
+    lines.append("]")
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def _toml_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def list_profiles() -> list[ProfileSpec]:
-    """Return all known profiles, in stable presentation order."""
-    return [PROFILES[k] for k in (
-        "office_worker", "developer", "casual_browser", "researcher",
-    )]
+    """Built-in profiles followed by user-saved ones (sorted by name)."""
+    return [PROFILES[k] for k in _BUILTIN_ORDER] + load_user_profiles()
 
 
 def get_profile(name: str) -> ProfileSpec:
-    try:
+    """Lookup by name across built-in + user profiles."""
+    if name in PROFILES:
         return PROFILES[name]
-    except KeyError as e:
-        raise ValueError(
-            f"unknown MIRAGE profile {name!r}; "
-            f"known: {sorted(PROFILES)}"
-        ) from e
+    for spec in load_user_profiles():
+        if spec.name == name:
+            return spec
+    raise ValueError(
+        f"unknown MIRAGE profile {name!r}; "
+        f"known: {sorted(PROFILES)} + user profiles in {USER_PROFILES_DIR}"
+    )
+
+
+def is_user_profile(name: str) -> bool:
+    """True if ``name`` corresponds to a user-saved profile (not built-in)."""
+    return name not in PROFILES
 
 
 __all__ = [
-    "ProfileSpec", "PROFILES", "LOCALES",
-    "list_profiles", "get_profile",
+    "ProfileSpec", "PROFILES", "LOCALES", "USER_PROFILES_DIR",
+    "list_profiles", "get_profile", "is_user_profile",
+    "load_user_profiles", "save_user_profile",
 ]

@@ -116,6 +116,21 @@ def _write(zout: zipfile.ZipFile, info: zipfile.ZipInfo, data: bytes) -> None:
     zout.writestr(new_info, data)
 
 
+# Standard DOCX core.xml elements (Dublin Core subset OOXML uses).
+_STANDARD_CORE_ELEMENTS = (
+    "title", "subject", "creator", "keywords", "description",
+    "lastModifiedBy", "revision", "lastPrinted", "created", "modified",
+    "category", "contentStatus",
+)
+
+# Common DOCX app.xml elements.
+_STANDARD_APP_ELEMENTS = (
+    "Template", "TotalTime", "Pages", "Words", "Characters",
+    "Application", "AppVersion", "Company", "Manager", "Lines",
+    "Paragraphs", "CharactersWithSpaces",
+)
+
+
 def _inspect_core(raw: bytes) -> list[FieldRemoved]:
     rows: list[FieldRemoved] = []
     try:
@@ -123,12 +138,19 @@ def _inspect_core(raw: bytes) -> list[FieldRemoved]:
     except ET.ParseError:
         return [FieldRemoved("DOCX.core", "(malformed XML)")]
 
+    seen: set[str] = set()
     for child in root:
         # child.tag is like "{http://purl.org/dc/elements/1.1/}creator"
         local = child.tag.split("}", 1)[-1]
+        seen.add(local)
         text = (child.text or "").strip()
-        if text:
-            rows.append(FieldRemoved(f"DOCX.core.{local}", text[:80]))
+        rows.append(FieldRemoved(
+            f"DOCX.core.{local}", text[:80] if text else "(empty)",
+        ))
+    # `(not present)` rows for the standard elements not in the file.
+    for elem in _STANDARD_CORE_ELEMENTS:
+        if elem not in seen:
+            rows.append(FieldRemoved(f"DOCX.core.{elem}", "(not present)"))
     return rows
 
 
@@ -139,11 +161,17 @@ def _inspect_app(raw: bytes) -> list[FieldRemoved]:
     except ET.ParseError:
         return [FieldRemoved("DOCX.app", "(malformed XML)")]
 
+    seen: set[str] = set()
     for child in root:
         local = child.tag.split("}", 1)[-1]
+        seen.add(local)
         text = (child.text or "").strip()
-        if text:
-            rows.append(FieldRemoved(f"DOCX.app.{local}", text[:80]))
+        rows.append(FieldRemoved(
+            f"DOCX.app.{local}", text[:80] if text else "(empty)",
+        ))
+    for elem in _STANDARD_APP_ELEMENTS:
+        if elem not in seen:
+            rows.append(FieldRemoved(f"DOCX.app.{elem}", "(not present)"))
     return rows
 
 

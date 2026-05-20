@@ -26,6 +26,17 @@ _KEEP_BASE = {
 # Chunks kept by default but dropped in aggressive mode.
 _KEEP_NON_AGGRESSIVE = {b"iCCP", b"sRGB"}
 
+# Standard PNG textual keywords (PNG spec §11.3.3.2). We report
+# `(not present)` rows for any of these that the file does not
+# carry, so the user can scan the full schema.
+_STANDARD_TEXT_KEYWORDS = (
+    "Title", "Author", "Description", "Copyright", "Creation Time",
+    "Software", "Disclaimer", "Warning", "Source", "Comment",
+)
+# Standard ancillary metadata chunks. Report `(not present)` when
+# the file doesn't carry them.
+_STANDARD_META_CHUNKS = (b"tIME", b"eXIf")
+
 
 def strip_png(data: bytes, *, aggressive: bool = False) -> StripResult:
     if not data.startswith(_SIG):
@@ -59,6 +70,30 @@ def strip_png(data: bytes, *, aggressive: bool = False) -> StripResult:
         i = chunk_end
         if ctype == b"IEND":
             break
+
+    # (not present) rows for the standard schema. Lets the UI show
+    # "what fields a PNG could carry" alongside what this one does.
+    seen_text_kw: set[str] = set()
+    seen_chunks: set[bytes] = set()
+    for row in removed:
+        if row.field.startswith("PNG.tEXt."):
+            seen_text_kw.add(row.field[len("PNG.tEXt."):])
+        elif row.field.startswith("PNG.zTXt."):
+            seen_text_kw.add(row.field[len("PNG.zTXt."):])
+        elif row.field.startswith("PNG.iTXt."):
+            seen_text_kw.add(row.field[len("PNG.iTXt."):])
+        if row.field.startswith("PNG."):
+            tag = row.field[len("PNG."):].split(".", 1)[0]
+            seen_chunks.add(tag.encode("ascii", errors="replace"))
+
+    for kw in _STANDARD_TEXT_KEYWORDS:
+        if kw not in seen_text_kw:
+            removed.append(FieldRemoved(f"PNG.tEXt.{kw}", "(not present)"))
+    for chunk in _STANDARD_META_CHUNKS:
+        if chunk not in seen_chunks:
+            removed.append(FieldRemoved(
+                f"PNG.{chunk.decode('ascii')}", "(not present)",
+            ))
 
     return StripResult(payload=bytes(out), removed=removed)
 

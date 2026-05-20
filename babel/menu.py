@@ -32,14 +32,18 @@ from babel.art import (
 )
 
 
-# All five tools are live in v2.0.0; the `(name, tag, hotkey)` triples
-# drive both the keybinding registration and the clickable Button rows.
+# Seven entries in v2.0.x polish #2: VOID is split into three modes
+# (server-only / server+client / client-only) so the user picks the
+# operating mode at launch. The (hotkey, slug, display name, tag) tuple
+# drives both the keybinding and the Button row.
 TOOLS = [
-    ("1", "void",    "VOID",    "ephemeral encrypted messenger"),
-    ("2", "mask",    "MASK",    "disposable identity generator"),
-    ("3", "strip",   "STRIP",   "metadata laundry"),
-    ("4", "carrier", "CARRIER", "steganography"),
-    ("5", "mirage",  "MIRAGE",  "cover traffic generator"),
+    ("1", "void-s",  "VOID-S",  "encrypted messenger — server only"),
+    ("2", "void-sc", "VOID-SC", "encrypted messenger — server + client"),
+    ("3", "void-c",  "VOID-C",  "encrypted messenger — client only"),
+    ("4", "mask",    "MASK",    "disposable identity generator"),
+    ("5", "strip",   "STRIP",   "metadata laundry"),
+    ("6", "carrier", "CARRIER", "steganography"),
+    ("7", "mirage",  "MIRAGE",  "cover traffic generator"),
 ]
 
 
@@ -133,11 +137,13 @@ class MainMenuView(Container):
     """
 
     BINDINGS = [
-        Binding("1", "select('void')",    "void",    show=False),
-        Binding("2", "select('mask')",    "mask",    show=False),
-        Binding("3", "select('strip')",   "strip",   show=False),
-        Binding("4", "select('carrier')", "carrier", show=False),
-        Binding("5", "select('mirage')",  "mirage",  show=False),
+        Binding("1", "select('void-s')",  "void-s",  show=False),
+        Binding("2", "select('void-sc')", "void-sc", show=False),
+        Binding("3", "select('void-c')",  "void-c",  show=False),
+        Binding("4", "select('mask')",    "mask",    show=False),
+        Binding("5", "select('strip')",   "strip",   show=False),
+        Binding("6", "select('carrier')", "carrier", show=False),
+        Binding("7", "select('mirage')",  "mirage",  show=False),
         Binding("q", "app.purge_quit",    "quit",    show=False, priority=True),
     ]
 
@@ -165,7 +171,7 @@ class MainMenuView(Container):
                 )
             yield Static(" ")
             yield Static(
-                f"// {random.choice(BABEL_HINTS)}      [1-5] tool   [q] quit",
+                f"// {random.choice(BABEL_HINTS)}      [1-7] tool   [q] quit",
                 classes="hint",
             )
 
