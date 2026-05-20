@@ -48,6 +48,10 @@ class ToolHomeView(Vertical):
 
     Subclasses set the class-level attrs. The view is focusable so its
     bindings fire as soon as it's pushed.
+
+    ``ALLOW_SELECT = False``: mirrors the setting on ``Chrome`` so
+    Textual 4.x's text-selection logic stays off across the whole
+    suite (see ``babel.shell.Chrome`` for the crash this avoids).
     """
 
     name: ClassVar[str] = "?"
@@ -58,6 +62,7 @@ class ToolHomeView(Vertical):
     threat_note: ClassVar[str] = ""
 
     can_focus = True
+    ALLOW_SELECT = False
 
     BINDINGS = [
         Binding("escape", "leave", "back to menu", show=True, priority=True),
