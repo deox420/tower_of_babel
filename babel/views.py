@@ -1,22 +1,27 @@
 """In-chrome tool home views.
 
 When the user picks a tool from the main menu, the chrome mounts the
-corresponding ``ToolHomeView`` in its content slot.  These views are
-intentionally **lightweight**: they show what the tool is, the CLI
-commands that drive it, and the hotkeys to return to the menu /
-background the service.  The heavy lifting (real chat, real metadata
-strip, real cover-traffic engine) still lives in each tool's CLI for
-v1.0; service-flavoured tools (VOID, MIRAGE) get registered in the
-``ServiceRegistry`` so the user can background them with ``Alt+0``
-and come back via ``Alt+N``.
+corresponding view in its content slot. v2.0.0 status:
+
+* **MASK, STRIP, CARRIER, MIRAGE**: fully interactive in-chrome views.
+  Their real widget trees live in ``tools/<tool>/app.py`` and inherit
+  from :class:`ToolHomeView`. The chrome owns the outer frame and the
+  footer; the tool view owns the content slot.
+* **VOID**: transitional. The home view is the v1.0 info card with one
+  added binding — `[Enter]` exits the chrome with ``return_value=
+  ("launch_void", argv)`` so ``babel.__main__`` can re-exec VOID as
+  its standalone app. Full migration of VOID's lobby/connecting/chat
+  screens into the chrome is tracked for v2.1.0
+  (docs/V2_REDESIGN.md §7.5; the screens currently inherit from
+  ``textual.Screen`` and would each need to become a Container).
 
 Each subclass declares:
 
-* ``name`` -- short uppercase tool name (matches the menu).
-* ``flavour`` -- ``"SERVICE"`` keeps the view in a slot when the user
+* ``name``     -- short uppercase tool name (matches the menu).
+* ``flavour``  -- ``"SERVICE"`` keeps the view in a slot when the user
   returns to the menu; ``"ACTION"`` is torn down on return.
-* ``logo`` -- pre-rendered ASCII banner from ``babel.art``.
-* ``summary`` -- one-paragraph blurb.
+* ``logo``    -- pre-rendered ASCII banner from ``babel.art``.
+* ``summary`` -- one-paragraph blurb (for the info-card fallback).
 * ``cli_examples`` -- list of ``(command, gloss)`` tuples.
 
 The base class also implements the chrome's ``Service`` Protocol so
@@ -30,7 +35,6 @@ from typing import ClassVar, Literal
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
-from textual.widget import Widget
 from textual.widgets import Static
 
 from babel import art, theme
@@ -42,9 +46,8 @@ _FLAVOUR_LITERAL = Literal["SERVICE", "ACTION"]
 class ToolHomeView(Vertical):
     """Home view for one tool, mounted inside the chrome's content slot.
 
-    Subclasses set the class-level attrs.  The view is focusable so
-    its bindings fire as soon as it's pushed (the menu had the same
-    issue -- Phase 6 hotfix).
+    Subclasses set the class-level attrs. The view is focusable so its
+    bindings fire as soon as it's pushed.
     """
 
     name: ClassVar[str] = "?"
@@ -147,7 +150,6 @@ class ToolHomeView(Vertical):
                         yield Static(f"  {cmd}", classes="cli-row")
                         yield Static(f"    {gloss}", classes="cli-gloss")
                     else:
-                        # 2-column inline layout when room permits.
                         yield Static(f"  {cmd}", classes="cli-row")
                         yield Static(f"      {gloss}", classes="cli-gloss")
             if self.threat_note:
@@ -159,13 +161,13 @@ class ToolHomeView(Vertical):
                 hint = "[Esc] return to menu"
             yield Static(hint, classes="keys")
 
-    # ----- chrome action handlers ------------------------------------------
+    # ----- chrome action handlers ---------------------------------------
 
     def action_leave(self) -> None:
         """Esc / Alt+0 -- hand control back to the chrome.
 
         The chrome decides what 'leave' means based on flavour:
-        * SERVICE: pop the view but keep this instance registered in
+        * SERVICE: hide the view but keep this instance registered in
           the slot so Alt+N can bring it back.
         * ACTION: pop and discard.
         """
@@ -174,12 +176,11 @@ class ToolHomeView(Vertical):
         if callable(leave):
             leave(self)
         else:
-            # Defensive fallback (e.g. running under a non-Babel app).
             ret = getattr(app, "return_to_menu", None)
             if callable(ret):
                 ret()
 
-    # ----- Service Protocol (used when flavour == "SERVICE") ---------------
+    # ----- Service Protocol (used when flavour == "SERVICE") -----------
 
     def status_line(self) -> str:
         return "idle"
@@ -191,12 +192,12 @@ class ToolHomeView(Vertical):
         return {}
 
     async def purge_local(self) -> None:
-        """Default: no in-RAM state to purge in v1.0 home views."""
+        """Default: no in-RAM state to purge."""
         return None
 
 
 # ---------------------------------------------------------------------------
-# Per-tool home views
+# VOID — transitional info-card. Full in-chrome migration is v2.1.0 work.
 # ---------------------------------------------------------------------------
 
 
@@ -210,144 +211,79 @@ class VoidHomeView(ToolHomeView):
         "no key material on disk, /burn wipes RAM on exit."
     )
     cli_examples = [
-        ("babel void --make-invite",  "host a room, print a void:// link"),
-        ("babel void",                "open the lobby (paste a void:// link)"),
-        ("babel void --setup",        "diagnostic (tor / mlock / xeddsa)"),
+        ("babel --exec void",                "open the lobby"),
+        ("babel --exec void --make-invite",  "host a room, print a void:// link"),
+        ("babel --exec void --setup",        "diagnostic (tor / mlock / xeddsa)"),
     ]
     threat_note = (
-        "Blind relay -- the server never sees plaintext. SAS = 40 "
-        "bits; verify it out-of-band. No PQ hybrid (HNDL risk)."
+        "VOID's full in-chrome migration is deferred to v2.1.0; pressing "
+        "[Enter] here briefly suspends the suite and runs VOID standalone. "
+        "When VOID exits you return to the babel menu."
     )
 
+    BINDINGS = [
+        Binding("escape", "leave",  "back to menu", show=True, priority=True),
+        Binding("alt+0",  "leave",  "menu",          show=False, priority=True),
+        Binding("enter",  "launch", "launch VOID",   show=True),
+    ]
+
     def status_line(self) -> str:
-        # v1.0: no in-chrome chat state yet.  The status badge just
-        # reflects 'idle / ready'.  When the chat client moves into
-        # the chrome it will update this with peer count + latency.
         return "ready"
 
+    def action_launch(self) -> None:
+        """Exit the suite app with a return-value hand-off.
 
-class MaskHomeView(ToolHomeView):
-    name = "MASK"
-    flavour = "ACTION"
-    logo = art.MASK_LOGO
-    summary = (
-        "Disposable identity generator. Alias from a public-domain "
-        "census-frequency catalog, deterministic geometric avatar, "
-        "2-3 line bio, optional temp-mail handle over Tor."
-    )
-    cli_examples = [
-        ("babel mask new",                       "generate a fresh identity"),
-        ("babel mask new --locale es",           "Spanish-locale alias pool"),
-        ("babel mask new --export ~/id.maskenc", "passphrase-encrypted bundle"),
-        ("babel mask decode mask://...",         "parse a mask:// URL"),
-    ]
-    threat_note = (
-        "Avatar is locally rendered (no reverse-image-search hit). "
-        "Public temp-mail addresses are read by anyone."
-    )
-
-
-class StripHomeView(ToolHomeView):
-    name = "STRIP"
-    flavour = "ACTION"
-    logo = art.STRIP_LOGO
-    summary = (
-        "Metadata laundry. Removes EXIF / XMP / IPTC from JPEG, "
-        "text chunks from PNG, /Info + /Metadata from PDF, core / "
-        "app / custom props from DOCX, ID3v2 / ID3v1 / APEv2 from "
-        "MP3.  Byte-level parsers, no re-encode."
-    )
-    cli_examples = [
-        ("babel strip ~/photo.jpg",            "strip in place"),
-        ("babel strip -o out.png in.png",      "explicit output path"),
-        ("babel strip --batch ~/photos/",      "walk a directory"),
-        ("babel strip --aggressive doc.docx",  "drop rsids + trackChanges too"),
-        ("babel strip --hash-rename file.pdf", "sha256-named output"),
-    ]
-    threat_note = (
-        "Sensor noise, printer dots, and Office track-change residue "
-        "in obscure XML survive. STRIP normalises; it does not guarantee 100%."
-    )
-
-
-class CarrierHomeView(ToolHomeView):
-    name = "CARRIER"
-    flavour = "ACTION"
-    logo = art.CARRIER_LOGO
-    summary = (
-        "Steganography. AES-256-GCM payload + Argon2id KDF, hidden "
-        "in the LSB plane of a PNG or WAV cover. No magic header "
-        "in the output -- a plain cover and a wrong-passphrase "
-        "attempt are indistinguishable."
-    )
-    cli_examples = [
-        ("babel carrier embed cover.png secret.txt",  "embed into PNG"),
-        ("babel carrier extract -o out.bin stego.png","recover the payload"),
-        ("babel carrier capacity cover.wav",          "report safe payload size"),
-        ("babel carrier inspect maybe-stego.png",     "chi-square sanity check"),
-    ]
-    threat_note = (
-        "Lossy re-encoding destroys LSB payloads. A forensic analyst "
-        "with the unmodified cover can detect tampering."
-    )
-
-
-class MirageHomeView(ToolHomeView):
-    name = "MIRAGE"
-    flavour = "SERVICE"
-    logo = art.MIRAGE_LOGO
-    summary = (
-        "Cover-traffic generator. Real httpx requests over Tor "
-        "SOCKS5h, Zipf-weighted per-profile site catalog, hard caps "
-        "on bandwidth / request rate / CPU.  Configurable profiles: "
-        "office_worker, developer, casual_browser, researcher."
-    )
-    cli_examples = [
-        ("babel mirage start --profile office_worker", "background noise"),
-        ("babel mirage start --honest",                "show each request as it fires"),
-        ("babel mirage profiles",                      "list profile envelopes"),
-        ("babel mirage --setup",                       "diagnostic"),
-    ]
-    threat_note = (
-        "Bot-like patterns are still distinguishable under sophisticated "
-        "analysis.  Running MIRAGE is itself a tell at the ISP level."
-    )
-
-    def status_line(self) -> str:
-        # v1.0 home view does not drive the real engine; expose the
-        # ceiling so the slot badge is informative.  When the engine
-        # moves in-chrome this returns live rpm / kbpm.
-        return "idle (use CLI to run)"
+        ``babel.__main__._run_menu`` inspects ``app.return_value`` and,
+        if it's ``("launch_void", argv)``, runs VOID standalone with
+        those argv. When VOID exits the menu is re-launched, restoring
+        the v1.0 flow until VOID's screens are fully ported.
+        """
+        app = self.app
+        try:
+            app.exit(result=("launch_void", []))
+        except TypeError:
+            try:
+                app.exit(("launch_void", []))
+            except Exception:
+                app.exit()
 
 
 # ---------------------------------------------------------------------------
 # Registry / lookup
 # ---------------------------------------------------------------------------
-
-_VIEW_CLASSES: dict[str, type[ToolHomeView]] = {
-    "void":    VoidHomeView,
-    "mask":    MaskHomeView,
-    "strip":   StripHomeView,
-    "carrier": CarrierHomeView,
-    "mirage":  MirageHomeView,
-}
+#
+# MASK / STRIP / CARRIER / MIRAGE live in their tool packages as
+# `<Tool>View(ToolHomeView)` and are imported lazily so users can run
+# `python -m babel --help` without dragging in Pillow, argon2-cffi,
+# httpx, etc. for every cold import.
 
 
 def view_class_for(tool: str) -> type[ToolHomeView] | None:
-    return _VIEW_CLASSES.get(tool.lower())
+    name = tool.lower()
+    if name == "void":
+        return VoidHomeView
+    if name == "mask":
+        from tools.mask.app import MaskView
+        return MaskView
+    if name == "strip":
+        from tools.strip.app import StripView
+        return StripView
+    if name == "carrier":
+        from tools.carrier.app import CarrierView
+        return CarrierView
+    if name == "mirage":
+        from tools.mirage.app import MirageView
+        return MirageView
+    return None
 
 
 def all_tool_names() -> list[str]:
-    return list(_VIEW_CLASSES.keys())
+    return ["void", "mask", "strip", "carrier", "mirage"]
 
 
 __all__ = [
     "ToolHomeView",
     "VoidHomeView",
-    "MaskHomeView",
-    "StripHomeView",
-    "CarrierHomeView",
-    "MirageHomeView",
     "view_class_for",
     "all_tool_names",
 ]

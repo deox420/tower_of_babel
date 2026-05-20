@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tower-of-babel"
-version = "0.5.0"
+version = "2.0.0"
 description = "Tower of Babel -- privacy and anti-surveillance terminal suite (VOID, MASK, STRIP, CARRIER, MIRAGE)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,28 +33,24 @@ dependencies = [
     "python-socks[asyncio]>=2.4",
     "doubleratchet>=1.3,<2",
     "x3dh>=1.3,<2",
-    # STRIP (Phase 2): PDF metadata parser. Pure-Python, MIT, no deps.
+    # STRIP: PDF metadata parser. Pure-Python, MIT, no deps.
     "pypdf>=4.0",
-    # CARRIER (Phase 3): PNG cover handling (Pillow, BSD-3) + Argon2id
+    # CARRIER: PNG cover handling (Pillow, BSD-3) + Argon2id
     # reference implementation (argon2-cffi, MIT).
     "Pillow>=10",
     "argon2-cffi>=23",
-    # MASK (Phase 4): async HTTP with SOCKS5 transport for the
-    # temp-mail adapters (Tor-routed by default).
+    # MASK: async HTTP with SOCKS5 transport for the temp-mail
+    # adapters (Tor-routed by default).
     "httpx[socks]>=0.27",
 ]
 
 [project.scripts]
-# Suite entry point. New top-level command.
+# v2.0.0: the only client entry point is `babel`. The legacy
+# top-level aliases (void, mask, strip, carrier, mirage) were
+# removed; interactive use goes through the menu, scripting goes
+# through `babel --exec <tool> [args]`. See docs/V2_REDESIGN.md §4.5.
 babel = "babel.__main__:main"
-# Legacy aliases so existing muscle memory and docs keep working.
-# All three forward to babel.__main__:main, which dispatches based
-# on argv (see MASTER.md Section 4.1).
-void = "babel.__main__:main"
-strip = "babel.__main__:main"
-carrier = "babel.__main__:main"
-mask = "babel.__main__:main"
-mirage = "babel.__main__:main"
+# Server is unrelated to the client suite and keeps its own alias.
 void-server = "tools.void.server.main:main"
 
 [project.urls]

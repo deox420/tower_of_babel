@@ -217,18 +217,13 @@ def _run_batch(path: Path, args: argparse.Namespace) -> int:
 
 
 def _run_interactive() -> int:
-    """No path on the command line -> mount the Textual screen.
-
-    The screen is intentionally minimal: it prompts for a path and
-    runs the same pipeline as the CLI. A full picker is Phase 2b.
-    """
-    try:
-        from tools.strip.app import run as run_app
-    except ImportError as e:
-        sys.stderr.write(f"strip: TUI requires textual: {e}\n")
-        return 2
-    run_app()
-    return 0
+    """Removed in v2.0.0 — interactive STRIP is reached via `babel`."""
+    sys.stderr.write(
+        "strip: interactive STRIP is now part of the babel menu in v2.0.0.\n"
+        "       run `babel` and pick `[3] STRIP`, or use "
+        "`babel --exec strip <file>` for one-shot scripting.\n"
+    )
+    return 2
 
 
 def _run_setup() -> int:

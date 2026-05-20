@@ -41,6 +41,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from babel import theme
+from babel.vault import Vault
 from shared.crypto.secure_mem import mlock_status, swap_active
 from shared.tor.socks_detect import detect_socks_port
 
@@ -652,10 +653,15 @@ class ChromeApp(App):
         initial_view: Widget | None = None,
         version: str = "1.0.0",
         registry: ServiceRegistry | None = None,
+        vault: Vault | None = None,
     ) -> None:
         super().__init__()
         self.version = version
         self.registry = registry or ServiceRegistry()
+        # Cross-tool in-memory artifact store (docs/V2_REDESIGN.md §4.4).
+        # MASK puts identities here, VOID's lobby + CARRIER's signing
+        # picker read them out. Cleared on purge_quit.
+        self.vault = vault or Vault()
         self._initial_view = initial_view
         self.chrome: Chrome | None = None
 
@@ -876,5 +882,11 @@ class ChromeApp(App):
         try:
             await asyncio.wait_for(self.registry.close_all(), timeout=4.0)
         except asyncio.TimeoutError:
+            pass
+        # Zeroize cross-tool artifacts before exiting. Synchronous —
+        # SecureBytes.free() doesn't block.
+        try:
+            self.vault.purge_all()
+        except Exception:
             pass
         self.exit()

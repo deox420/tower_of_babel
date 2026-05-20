@@ -99,22 +99,33 @@ with `SHA256SUMS`.
 
 ## Use
 
-`babel` opens the suite menu. Each tool also has a top-level shortcut
-that forwards into the same code path.
+`babel` opens the suite menu. Pick a tool with `1`-`5`; press `Esc`
+or `Alt+0` to come back. SERVICE-flavour tools (VOID, MIRAGE) survive
+backgrounding — `Alt+1..N` jumps to the Nth active slot.
 
 ```bash
 babel                          # main menu
 babel --setup                  # aggregated diagnostic for every tool
-babel void                     # straight into VOID
-babel void --make-invite       # host an ephemeral chat
-babel mask new                 # one-keystroke disposable identity
-babel strip ~/photo.jpg        # remove metadata, write photo.stripped.jpg
-babel carrier embed cover.png secret.txt
-babel mirage start --profile office_worker
 ```
 
-The legacy `void`, `mask`, `strip`, `carrier`, and `mirage` commands
-are kept as aliases and dispatch through `babel.__main__`.
+For shell pipelines and batch use, every tool's scripted operations
+are reachable through a single `--exec` surface:
+
+```bash
+babel --exec mask new --locale es_AR
+babel --exec strip ~/photo.jpg
+babel --exec carrier embed cover.png secret.txt
+babel --exec mirage start --profile office_worker
+babel --exec void --make-invite
+```
+
+> **v2.0.0 breaking change.** The top-level `void`, `mask`, `strip`,
+> `carrier`, `mirage` aliases and the `babel <tool>` form are removed.
+> Run `babel` for interactive use or `babel --exec <tool> ...` for
+> scripting. See [CHANGELOG.md](CHANGELOG.md) for details. VOID's full
+> in-chrome migration is deferred to v2.1.0; selecting it from the
+> menu briefly hands off to its standalone client and returns when
+> VOID exits.
 
 ## What this does NOT protect
 
@@ -152,8 +163,8 @@ of this for what it was not built to do.
 ## Verify a release
 
 ```bash
-curl -LO https://github.com/deox420/tower_of_babel/releases/download/v1.0.0/SHA256SUMS
-curl -LO https://github.com/deox420/tower_of_babel/releases/download/v1.0.0/babel-1.0.0-linux-x86_64
+curl -LO https://github.com/deox420/tower_of_babel/releases/download/v2.0.0/SHA256SUMS
+curl -LO https://github.com/deox420/tower_of_babel/releases/download/v2.0.0/babel-2.0.0-linux-x86_64
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 

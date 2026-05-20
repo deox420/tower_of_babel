@@ -1,32 +1,25 @@
-"""MIRAGE Textual screen.
+"""MIRAGE in-chrome interactive view.
 
-The screen is the foreground view of MIRAGE -- the user lands here
-from the babel menu (``[5]``) and can:
-
-  * pick a profile / locale / Tor toggle
-  * start, pause, resume, stop the engine
-  * watch the live event ring buffer if honest mode is on
-  * request a one-shot NEWNYM
-  * close the slot, which purges the engine
-
-The engine itself runs as an asyncio task on the Textual loop; the
-screen wakes once per second to refresh the snapshot panel.  Real
-work happens in ``tools.mirage.engine``; this module is presentation
-only and would ideally have no business logic at all.
+Lives in `babel.shell.ChromeApp`'s content slot. Pre-v2 this module
+also hosted a standalone `MirageApp(App)` wrapper that was launched
+via `babel mirage`; that wrapper is gone in v2.0.0 — the menu is the
+single entry into MIRAGE. The engine still runs as an asyncio task
+on the suite's Textual loop and survives backgrounding via Alt+0;
+see docs/V2_REDESIGN.md §7.4.
 """
 from __future__ import annotations
 
-import asyncio
-import time
 from datetime import datetime, timezone
+from typing import ClassVar
 
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
-from textual.widgets import Footer, Static
+from textual.containers import Vertical
+from textual.widgets import Static
 
-from babel import theme
+from babel import art, theme
 from babel.art import BABEL_TAGLINE
+from babel.views import ToolHomeView
 
 from tools.mirage.engine import (
     EngineConfig, Event, HttpxTransport, MirageEngine,
@@ -37,8 +30,19 @@ from tools.mirage.profile import LOCALES, list_profiles
 _PROFILE_NAMES = [s.name for s in list_profiles()]
 
 
-class MirageView(Container):
-    """The mounted view.  Mounts inside ``babel.shell.Chrome`` content slot."""
+class MirageView(ToolHomeView):
+    """MIRAGE's interactive home view. SERVICE-flavour: survives Alt+0."""
+
+    name: ClassVar[str] = "MIRAGE"
+    flavour: ClassVar[str] = "SERVICE"
+    logo: ClassVar[str] = art.MIRAGE_LOGO
+    summary: ClassVar[str] = (
+        "Cover-traffic generator. Real httpx requests over Tor SOCKS5h, "
+        "Zipf-weighted per-profile site catalog, hard caps on bandwidth "
+        "and request rate."
+    )
+    cli_examples: ClassVar[list[tuple[str, str]]] = []
+    threat_note: ClassVar[str] = ""
 
     DEFAULT_CSS = f"""
     MirageView {{
@@ -46,6 +50,7 @@ class MirageView(Container):
         color: {theme.GREEN};
         height: 1fr;
         width: 1fr;
+        padding: 1 2;
     }}
     MirageView .title {{ color: {theme.GREEN}; text-style: bold; }}
     MirageView .tagline {{ color: {theme.CYAN}; text-style: dim italic; }}
@@ -70,7 +75,8 @@ class MirageView(Container):
         Binding("left_square_bracket",  "rate_down", "rate-", show=False),
         Binding("n", "rotate", "newnym", show=True),
         Binding("c", "clear",  "clear",  show=True),
-        Binding("escape", "leave", "back", show=True),
+        Binding("escape", "leave", "back", show=True, priority=True),
+        Binding("alt+0",  "leave", "menu", show=False, priority=True),
         Binding("q",      "leave", "quit", show=False),
     ]
 
@@ -111,10 +117,15 @@ class MirageView(Container):
             )
 
     def on_mount(self) -> None:
-        # Tick once per second to refresh the snapshot + honest panel.
+        # ToolHomeView's on_mount focuses the widget; keep that and
+        # add our 1-second tick for the snapshot panel.
+        try:
+            self.focus()
+        except Exception:
+            pass
         self.set_interval(1.0, self._tick)
 
-    # ----- header / refresh ------------------------------------------------
+    # ----- header / refresh ---------------------------------------------
 
     def _mode_text(self) -> str:
         c = self.config
@@ -157,7 +168,33 @@ class MirageView(Container):
             lines = [_fmt_event(e) for e in events]
             self._events_widget.update("\n".join(lines))
 
-    # ----- key handlers ----------------------------------------------------
+    # ----- Service Protocol -------------------------------------------
+
+    def status_line(self) -> str:
+        if self.engine is None:
+            return "idle"
+        snap = self.engine.snapshot()
+        if snap.get("paused"):
+            return "paused"
+        if snap.get("running"):
+            return f"{snap.get('requests', 0)} req"
+        return "stopped"
+
+    def footer_contribution(self) -> dict:
+        if self.engine is not None and self.engine.is_running():
+            return {"TOR": "on" if self.config.use_tor else ""}
+        return {}
+
+    async def purge_local(self) -> None:
+        """Stop the engine cleanly on suite quit."""
+        if self.engine is not None:
+            try:
+                await self.engine.stop()
+            except Exception:
+                pass
+            self.engine = None
+
+    # ----- key handlers ------------------------------------------------
 
     def action_cycle_locale(self) -> None:
         i = (LOCALES.index(self.config.locale) + 1) % len(LOCALES)
@@ -232,12 +269,12 @@ class MirageView(Container):
         self._set_status("NEWNYM requested", "")
 
     def action_leave(self) -> None:
-        if self.engine is not None:
-            self.run_worker(self._purge_then_exit(), exclusive=True)
-        else:
-            self.app.exit()
+        # SERVICE-flavour leave: the chrome will keep this view in the
+        # slot (engine stays running). Use Ctrl+W to actually close +
+        # purge the engine.
+        super().action_leave()
 
-    # ----- workers ---------------------------------------------------------
+    # ----- workers -----------------------------------------------------
 
     async def _start_engine(self) -> None:
         try:
@@ -246,13 +283,11 @@ class MirageView(Container):
             self._set_status(str(e), "err")
             return
         except ImportError:
-            self._set_status("httpx not installed -- see `babel mirage --setup`", "err")
+            self._set_status("httpx not installed -- see `babel --exec mirage --setup`",
+                             "err")
             return
 
         def on_event(_ev: Event) -> None:
-            # Snapshot panel refreshes on its 1s tick; we only need to
-            # nudge the event widget when honest mode is on, and the
-            # tick will pick that up too.
             return
 
         self.engine = MirageEngine(
@@ -264,13 +299,7 @@ class MirageView(Container):
         except RuntimeError as e:
             self._set_status(str(e), "err")
 
-    async def _purge_then_exit(self) -> None:
-        if self.engine is not None:
-            await self.engine.stop()
-            self.engine = None
-        self.app.exit()
-
-    # ----- helpers ---------------------------------------------------------
+    # ----- helpers -----------------------------------------------------
 
     def _set_status(self, text: str, cls: str) -> None:
         if self._status_line is None:
@@ -298,20 +327,4 @@ def _fmt_event(e: Event) -> str:
     )
 
 
-class MirageApp(App):
-    TITLE = "TOWER OF BABEL / MIRAGE"
-    BINDINGS = [
-        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
-        Binding("ctrl+q", "quit", "quit", show=False, priority=True),
-    ]
-
-    def compose(self) -> ComposeResult:
-        yield MirageView()
-        yield Footer()
-
-
-def run() -> None:
-    MirageApp().run()
-
-
-__all__ = ["MirageView", "MirageApp", "run"]
+__all__ = ["MirageView"]

@@ -308,13 +308,13 @@ async def _wait_for_stop(engine: MirageEngine, stop_signal: asyncio.Event) -> No
 
 
 def _run_interactive() -> int:
-    try:
-        from tools.mirage.app import run as run_app
-    except ImportError as e:
-        sys.stderr.write(f"mirage: TUI requires textual: {e}\n")
-        return EX_USAGE
-    run_app()
-    return EX_OK
+    """Removed in v2.0.0 — interactive MIRAGE is reached via `babel`."""
+    sys.stderr.write(
+        "mirage: interactive MIRAGE is now part of the babel menu in v2.0.0.\n"
+        "        run `babel` and pick `[5] MIRAGE`, or use "
+        "`babel --exec mirage start --profile X` for scripting.\n"
+    )
+    return EX_USAGE
 
 
 # ---------------------------------------------------------------------------
