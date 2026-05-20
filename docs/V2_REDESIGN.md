@@ -1,6 +1,23 @@
 # Tower of Babel v2.0.0 — Monolithic App Redesign
 
-**Status:** design draft for review. No implementation yet.
+**Status:** design + Phase 1 implementation in progress.
+
+> **Note on prior art.** When this doc was drafted, the redesign was
+> framed as "starting from scratch." A closer read of `babel/shell.py`
+> and `babel/views.py` shows the monolithic shell **mostly already
+> exists** in v1.0: `ChromeApp` is the `BabelApp` from §4.1,
+> `ServiceRegistry` (`babel/shell.py:97`) matches §4.3 almost
+> exactly, `ToolHomeView` (`babel/views.py:42`) plays the role of
+> `ToolScreen` from §4.2, and `MainMenuView` is the menu screen.
+> Phase 1 is therefore much smaller than originally estimated: the
+> only genuinely new module is `babel/vault.py` (§4.4). Phase 2 still
+> needs to do the heavy lifting — replacing each tool's standalone
+> `<Tool>App(App)` with in-chrome interactive screens.
+>
+> Where this doc refers to `BabelApp` or `ToolScreen`, those names
+> map onto the existing `ChromeApp` and `ToolHomeView` classes.
+> They were not renamed in Phase 1 to avoid breaking imports across
+> the codebase for cosmetic reasons.
 
 This document specifies the v2.0.0 redesign of the suite navigation:
 a single monolithic Textual app (`BabelApp`) where each tool is a
@@ -467,8 +484,8 @@ findings in the PR.
 
 ## 8. Phases recap
 
-1. **Phase 1 (2-3 d)**: `BabelApp` + `ServiceRegistry` + `Vault` + `ToolScreen` base + new menu screen, with the old `_run_<tool>` shims still in place so the suite remains functional. Smoke test on Linux + Termux.
-2. **Phase 2 (8-10 d)**: tool migrations in the order MASK → STRIP → CARRIER → MIRAGE → VOID, one PR per tool, each landing green on all 4 smoke-test platforms.
+1. **Phase 1 (small — most was already done in v1)**: add `babel/vault.py` (`Vault`, `Artifact`, `ArtifactKind`), wire `self.vault` into `ChromeApp`, plumb `purge_all()` into `action_purge_quit`, add stdlib `unittest` test coverage. The shell, registry, ToolHomeView base, and main menu were already in place from v1; no new code there. **Status: ✓ done — see this PR.**
+2. **Phase 2 (8-10 d)**: tool migrations in the order MASK → STRIP → CARRIER → MIRAGE → VOID, one PR per tool. Each tool's home view today is just an info card listing CLI commands; Phase 2 replaces that with the tool's real interactive UI (port `<Tool>App(App)` → screens pushed by `<Tool>HomeView`). Each landing green on all 4 smoke-test platforms.
 3. **Phase 3 (1-2 d)**: delete the legacy CLI shims, add `--exec` parser, remove `[project.scripts]` aliases. Reinstall + verify `which void` returns nothing.
 4. **Phase 4 (2-3 d)**: rewrite README, USAGE.md, ARCHITECTURE.md, CHANGELOG, RELEASE_NOTES, bump VERSION to 2.0.0, audit install scripts.
 
