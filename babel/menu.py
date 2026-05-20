@@ -20,7 +20,7 @@ import random
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from babel import theme
 from babel.art import (
@@ -32,14 +32,14 @@ from babel.art import (
 )
 
 
-# Order matches MASTER.md Section 7 table.  Live=True means the entry
-# launches a real tool; False renders dimmed and the keypress no-ops.
+# All five tools are live in v2.0.0; the `(name, tag, hotkey)` triples
+# drive both the keybinding registration and the clickable Button rows.
 TOOLS = [
-    ("1", "VOID",    "ephemeral encrypted messenger",        True),
-    ("2", "MASK",    "disposable identity generator",        True),
-    ("3", "STRIP",   "metadata laundry",                     True),
-    ("4", "CARRIER", "steganography",                        True),
-    ("5", "MIRAGE",  "cover traffic generator",              True),
+    ("1", "void",    "VOID",    "ephemeral encrypted messenger"),
+    ("2", "mask",    "MASK",    "disposable identity generator"),
+    ("3", "strip",   "STRIP",   "metadata laundry"),
+    ("4", "carrier", "CARRIER", "steganography"),
+    ("5", "mirage",  "MIRAGE",  "cover traffic generator"),
 ]
 
 
@@ -102,18 +102,33 @@ class MainMenuView(Container):
         text-align: center;
     }}
     MainMenuView .menu-row {{
+        /* Each row is a Button styled to look like the v1 Static row.
+           Borderless until hover/focus so the menu stays clean. */
         width: 100%;
+        height: 3;
+        background: {theme.BG};
         color: {theme.GREEN};
+        border: none;
+        padding: 0 0;
+        margin: 0 0;
+        text-align: left;
     }}
-    MainMenuView .menu-row.dim {{
-        width: 100%;
-        color: {theme.MUTE};
-        text-style: dim;
+    MainMenuView .menu-row:hover {{
+        background: {theme.GREEN_DEEP};
+        color: {theme.CYAN};
+        border: none;
+    }}
+    MainMenuView .menu-row:focus {{
+        color: {theme.CYAN};
+        text-style: bold;
+        border: none;
     }}
     MainMenuView .hint {{
         width: 100%;
         color: {theme.CYAN};
         text-style: dim italic;
+        text-align: center;
+        margin-top: 1;
     }}
     """
 
@@ -124,11 +139,6 @@ class MainMenuView(Container):
         Binding("4", "select('carrier')", "carrier", show=False),
         Binding("5", "select('mirage')",  "mirage",  show=False),
         Binding("q", "app.purge_quit",    "quit",    show=False, priority=True),
-        # `h` (3-panel first-time wizard, MASTER.md 6.2) and `s` (TUI
-        # setup aggregator, 6.3) are deferred post-1.0.  CLI paths
-        # (`babel --help`, `babel --setup`) cover both today; the TUI
-        # bindings are intentionally absent so the menu hint never
-        # advertises a stub.  See RELEASE_NOTES.md "Known deviations".
     ]
 
     def on_mount(self) -> None:
@@ -147,16 +157,23 @@ class MainMenuView(Container):
             yield Static(BABEL_TAGLINE, classes="tagline")
             yield Static(SCANLINE, classes="scanline")
             yield Static(" ")
-            for key, name, tag, live in TOOLS:
-                cls = "menu-row" if live else "menu-row dim"
-                suffix = "" if live else "  (not yet built)"
-                yield Static(f"  [{key}]  {name:<8}  {tag}{suffix}",
-                             classes=cls)
+            for key, slug, name, tag in TOOLS:
+                yield Button(
+                    f"  [{key}]  {name:<8}  {tag}",
+                    id=f"menu-{slug}",
+                    classes="menu-row",
+                )
             yield Static(" ")
             yield Static(
-                f"// {random.choice(BABEL_HINTS)}      [q] quit",
+                f"// {random.choice(BABEL_HINTS)}      [1-5] tool   [q] quit",
                 classes="hint",
             )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Click on a menu row → same path as pressing the digit."""
+        button_id = event.button.id or ""
+        if button_id.startswith("menu-"):
+            self.action_select(button_id[len("menu-"):])
 
     # ----- actions ---------------------------------------------------------
 

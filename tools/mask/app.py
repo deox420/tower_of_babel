@@ -16,8 +16,8 @@ from typing import ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import Static
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Static
 
 from babel import art, theme
 from babel.art import BABEL_TAGLINE
@@ -66,9 +66,19 @@ class MaskView(ToolHomeView):
     MaskView .status.err {{ color: {theme.RED}; }}
     MaskView .field {{ color: {theme.GREEN}; }}
     MaskView .url {{ color: {theme.CYAN}; }}
+    MaskView #mask-button-row {{
+        height: auto;
+        width: 100%;
+        margin-top: 1;
+        margin-bottom: 1;
+    }}
+    MaskView #mask-button-row Button {{
+        margin-right: 1;
+    }}
     """
 
     BINDINGS = [
+        Binding("enter", "new",     "generate", show=True, priority=True),
         Binding("n", "new",         "new",     show=True),
         Binding("l", "cycle_locale", "locale",  show=True),
         Binding("p", "cycle_profile", "profile", show=True),
@@ -92,6 +102,8 @@ class MaskView(ToolHomeView):
         self._identity_widget: Static | None = None
         self._avatar_widget: Static | None = None
         self._url_widget: Static | None = None
+        self._tor_button: Button | None = None
+        self._mail_button: Button | None = None
         self._busy = False
 
     def compose(self) -> ComposeResult:
@@ -101,8 +113,17 @@ class MaskView(ToolHomeView):
             yield Static(" ")
             self._mode_line = Static(self._mode_text(), classes="status")
             yield self._mode_line
-            yield Static(" ")
-            self._identity_widget = Static("  (press [n] to generate)",
+            with Horizontal(id="mask-button-row"):
+                yield Button("[ Generate ]", id="mask-generate",
+                             variant="success")
+                self._tor_button = Button(self._tor_label(), id="mask-tor",
+                                          variant=self._tor_variant())
+                yield self._tor_button
+                self._mail_button = Button(self._mail_label(), id="mask-mail")
+                yield self._mail_button
+                yield Button("[ Save to Vault ]", id="mask-save",
+                             variant="primary")
+            self._identity_widget = Static("  (click [Generate] or press Enter)",
                                            classes="field")
             yield self._identity_widget
             self._avatar_widget = Static("", classes="field")
@@ -116,10 +137,37 @@ class MaskView(ToolHomeView):
             yield self._status
             yield Static(" ")
             yield Static(
-                "  [n] new  [l] locale  [p] profile  [t] tor  "
+                "  Enter/[n] new  [l] locale  [p] profile  [t] tor  "
                 "[m] mail  [v] view  [c] copy  [s] save  [Esc] back",
                 classes="status",
             )
+
+    def _tor_label(self) -> str:
+        return "[ Tor: on ]" if self.opts.use_tor else "[ Tor: CLEARNET ]"
+
+    def _tor_variant(self) -> str:
+        return "default" if self.opts.use_tor else "warning"
+
+    def _mail_label(self) -> str:
+        return "[ Mail: on ]" if self.opts.fetch_mail else "[ Mail: off ]"
+
+    def _refresh_action_buttons(self) -> None:
+        if self._tor_button is not None:
+            self._tor_button.label = self._tor_label()
+            self._tor_button.variant = self._tor_variant()
+        if self._mail_button is not None:
+            self._mail_button.label = self._mail_label()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid == "mask-generate":
+            self.action_new()
+        elif bid == "mask-tor":
+            self.action_toggle_tor()
+        elif bid == "mask-mail":
+            self.action_toggle_mail()
+        elif bid == "mask-save":
+            self.action_save_vault()
 
     # ----- header -----------------------------------------------------
 
@@ -153,10 +201,12 @@ class MaskView(ToolHomeView):
             )
         self.opts.use_tor = not self.opts.use_tor
         self._refresh_mode()
+        self._refresh_action_buttons()
 
     def action_toggle_mail(self) -> None:
         self.opts.fetch_mail = not self.opts.fetch_mail
         self._refresh_mode()
+        self._refresh_action_buttons()
 
     def action_leave(self) -> None:
         # Best-effort scrub before handing control back to the chrome.

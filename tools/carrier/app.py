@@ -4,6 +4,12 @@ Lives in `babel.shell.ChromeApp`'s content slot. Pre-v2 this module
 also hosted a standalone `CarrierApp(App)` wrapper that was launched
 via `babel carrier`; that wrapper is gone in v2.0.0 — the menu is
 the single entry into CARRIER. See docs/V2_REDESIGN.md §7.3.
+
+v2.0.1 polish: each of the 4 modes (embed / extract / capacity /
+inspect) is a clickable Button at the top of the view. The hint
+line under the buttons explains exactly which Inputs the active
+mode reads. Unused Inputs are disabled (greyed out) per mode so the
+user can't accidentally type into a field that won't be read.
 """
 from __future__ import annotations
 
@@ -13,8 +19,8 @@ from typing import ClassVar
 from cryptography.exceptions import InvalidTag
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import Input, Static
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Input, Static
 
 from babel import art, theme
 from babel.art import BABEL_TAGLINE
@@ -28,6 +34,14 @@ from tools.carrier.pipeline import (
 )
 from tools.carrier.core import png as png_core
 from tools.carrier.core import wav as wav_core
+
+
+MODE_HINTS = {
+    "embed":    "EMBED — fill cover + payload + passphrase, click [Run] or press Enter",
+    "extract":  "EXTRACT — fill cover + passphrase, click [Run] or press Enter",
+    "capacity": "CAPACITY — fill cover only, click [Run] or press Enter",
+    "inspect":  "INSPECT — fill cover only, click [Run] or press Enter",
+}
 
 
 class CarrierView(ToolHomeView):
@@ -56,10 +70,30 @@ class CarrierView(ToolHomeView):
     CarrierView .status {{ color: {theme.MUTE}; }}
     CarrierView .status.warn {{ color: {theme.AMBER}; }}
     CarrierView .status.err {{ color: {theme.RED}; }}
+    CarrierView .hint {{
+        color: {theme.CYAN};
+        text-style: italic;
+        margin-top: 1;
+        margin-bottom: 1;
+    }}
     CarrierView Input {{
         background: {theme.BG};
         color: {theme.GREEN};
         border: tall {theme.GREEN_DEEP};
+    }}
+    CarrierView Input:disabled {{
+        color: {theme.MUTE};
+        border: tall {theme.GREEN_DEEP} 30%;
+    }}
+    CarrierView #mode-bar {{
+        height: auto;
+        width: 100%;
+        margin-bottom: 1;
+    }}
+    CarrierView #mode-bar Button {{ margin-right: 1; }}
+    CarrierView #run-row {{
+        height: auto;
+        margin-top: 1;
     }}
     """
 
@@ -76,48 +110,88 @@ class CarrierView(ToolHomeView):
         super().__init__()
         self.mode = "embed"
         self._status: Static | None = None
-        self._mode_line: Static | None = None
+        self._hint: Static | None = None
         self._hex: HexView | None = None
+        self._mode_buttons: dict[str, Button] = {}
+        self._cover_input: Input | None = None
+        self._payload_input: Input | None = None
+        self._passphrase_input: Input | None = None
 
     def compose(self) -> ComposeResult:
         prompt = theme.glyph("prompt")
         with Vertical():
             yield Static("CARRIER -- steganography", classes="title")
             yield Static(BABEL_TAGLINE, classes="tagline")
-            yield Static(" ")
-            self._mode_line = Static(self._mode_text(), classes="status")
-            yield self._mode_line
-            yield Input(placeholder=f"{prompt} cover path ...", id="cover")
-            yield Input(placeholder=f"{prompt} payload path "
-                                    f"(embed only) ...", id="payload")
-            yield Input(placeholder=f"{prompt} passphrase ...",
-                        id="passphrase", password=True)
+            with Horizontal(id="mode-bar"):
+                for mode in ("embed", "extract", "capacity", "inspect"):
+                    variant = "primary" if mode == self.mode else "default"
+                    btn = Button(f"[ {mode.title()} ]",
+                                 id=f"carrier-mode-{mode}",
+                                 variant=variant)
+                    self._mode_buttons[mode] = btn
+                    yield btn
+            self._hint = Static(MODE_HINTS[self.mode], classes="hint")
+            yield self._hint
+            self._cover_input = Input(placeholder=f"{prompt} cover path ...",
+                                      id="cover")
+            yield self._cover_input
+            self._payload_input = Input(
+                placeholder=f"{prompt} payload path (embed only) ...",
+                id="payload")
+            yield self._payload_input
+            self._passphrase_input = Input(
+                placeholder=f"{prompt} passphrase ...",
+                id="passphrase", password=True)
+            yield self._passphrase_input
+            with Horizontal(id="run-row"):
+                yield Button("[ Run ]", id="carrier-run",
+                             variant="success")
             self._status = Static("", classes="status")
             yield self._status
             self._hex = HexView(b"", max_rows=4, id="hex-preview")
             yield self._hex
-            yield Static(" ")
-            yield Static("  [e] embed  [x] extract  [c] capacity  "
-                         "[i] inspect  [Esc] back",
-                         classes="status")
+            yield Static(
+                "  [e] embed  [x] extract  [c] capacity  [i] inspect  [Esc] back",
+                classes="status")
+        self._sync_input_visibility()
 
     # ----- mode handling ------------------------------------------------
 
-    def _mode_text(self) -> str:
-        return f"  mode: {self.mode}"
-
     def action_set_mode(self, mode: str) -> None:
-        if mode in {"embed", "extract", "capacity", "inspect"}:
-            self.mode = mode
-            if self._mode_line is not None:
-                self._mode_line.update(self._mode_text())
+        if mode not in MODE_HINTS:
+            return
+        self.mode = mode
+        for name, btn in self._mode_buttons.items():
+            btn.variant = "primary" if name == mode else "default"
+        if self._hint is not None:
+            self._hint.update(MODE_HINTS[mode])
+        self._sync_input_visibility()
 
-    # ----- submit -------------------------------------------------------
+    def _sync_input_visibility(self) -> None:
+        """Disable Inputs the active mode doesn't read."""
+        needs_payload = self.mode == "embed"
+        needs_passphrase = self.mode in ("embed", "extract")
+        if self._payload_input is not None:
+            self._payload_input.disabled = not needs_payload
+        if self._passphrase_input is not None:
+            self._passphrase_input.disabled = not needs_passphrase
+
+    # ----- mouse / submit dispatch --------------------------------------
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid.startswith("carrier-mode-"):
+            self.action_set_mode(bid[len("carrier-mode-"):])
+        elif bid == "carrier-run":
+            self._run_current_mode()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        cover_path = self.query_one("#cover", Input).value.strip()
-        payload_path = self.query_one("#payload", Input).value.strip()
-        passphrase = self.query_one("#passphrase", Input).value
+        self._run_current_mode()
+
+    def _run_current_mode(self) -> None:
+        cover_path = self._cover_input.value.strip() if self._cover_input else ""
+        payload_path = self._payload_input.value.strip() if self._payload_input else ""
+        passphrase = self._passphrase_input.value if self._passphrase_input else ""
         if not cover_path:
             self._set_status("cover path required", "err")
             return
