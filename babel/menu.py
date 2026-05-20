@@ -60,6 +60,9 @@ class MainMenuView(Container):
     """
 
     can_focus = True
+    # Mirror Chrome's setting — see babel.shell.Chrome for the click
+    # crash this guards against on Textual 4.x / Python 3.14.
+    ALLOW_SELECT = False
 
     DEFAULT_CSS = f"""
     MainMenuView {{

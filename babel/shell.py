@@ -372,7 +372,18 @@ class Chrome(Screen):
     Chrome.  Instead the content slot is a plain container we mount
     children into via ``push_view`` / ``pop_view``.  The frame draws
     once at mount and only repaints on terminal resize.
+
+    ``ALLOW_SELECT = False`` disables text-selection on the whole
+    Chrome subtree. Without it, clicking anywhere in the chrome on
+    Textual 4.x / Python 3.14 trips an internal ``assert isinstance(
+    content_widget.parent, Widget)`` because Chrome is the top-level
+    Screen and its parent is the ``App`` (which is a ``DOMNode``,
+    not a ``Widget``). Bindings, ``Input`` focus, and wheel scroll
+    keep working — only drag-to-select is gone, which the keyboard-
+    first UI never used anyway.
     """
+
+    ALLOW_SELECT = False
 
     DEFAULT_CSS = f"""
     Chrome {{
