@@ -1,25 +1,28 @@
-"""MASK Textual screen -- minimal interactive front-end.
+"""MASK in-chrome interactive view.
 
-Toggles for locale / profile / Tor / mail; `n` to generate; `x` to
-export. The screen renders the current identity (alias, handle, bio,
-avatar block-preview, mail) and the per-phase step indicator below.
+Lives in `babel.shell.ChromeApp`'s content slot. Pre-v2 this module
+also hosted a standalone `MaskApp(App)` wrapper that was launched via
+`babel mask`; that wrapper is gone in v2.0.0 — the menu is now the
+single entry into MASK. See docs/V2_REDESIGN.md §7.1.
 
-Mounted inside the babel chrome by ``babel.__main__._run_mask``.
-The chrome owns the outer frame and the footer; this view owns the
-content slot.
+Toggles for locale / profile / Tor / mail; `n` to generate; `c` to
+copy the resulting mask:// URL; `v` to render the avatar block
+preview; `s` to save the identity to the suite Vault so VOID can
+pick it from its lobby dropdown.
 """
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
+from typing import ClassVar
 
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
-from textual.widgets import Footer, Input, Static
+from textual.containers import Vertical
+from textual.widgets import Static
 
-from babel import theme
+from babel import art, theme
 from babel.art import BABEL_TAGLINE
+from babel.vault import ArtifactKind
+from babel.views import ToolHomeView
 from shared.ui.step_indicator import Step, render_steps
 
 from tools.mask.alias import LOCALES, PROFILES
@@ -34,13 +37,27 @@ from tools.mask.pipeline import (
 )
 
 
-class MaskView(Container):
+class MaskView(ToolHomeView):
+    """Interactive MASK home view, mounted by the chrome on entry."""
+
+    name: ClassVar[str] = "MASK"
+    flavour: ClassVar[str] = "ACTION"
+    logo: ClassVar[str] = art.MASK_LOGO
+    summary: ClassVar[str] = (
+        "Disposable identity generator. Alias from a public-domain "
+        "census-frequency catalog, deterministic geometric avatar, "
+        "2-3 line bio, optional temp-mail handle over Tor."
+    )
+    cli_examples: ClassVar[list[tuple[str, str]]] = []
+    threat_note: ClassVar[str] = ""
+
     DEFAULT_CSS = f"""
     MaskView {{
         background: {theme.BG};
         color: {theme.GREEN};
         height: 1fr;
         width: 1fr;
+        padding: 1 2;
     }}
     MaskView .title {{ color: {theme.GREEN}; text-style: bold; }}
     MaskView .tagline {{ color: {theme.CYAN}; text-style: dim italic; }}
@@ -49,11 +66,6 @@ class MaskView(Container):
     MaskView .status.err {{ color: {theme.RED}; }}
     MaskView .field {{ color: {theme.GREEN}; }}
     MaskView .url {{ color: {theme.CYAN}; }}
-    MaskView Input {{
-        background: {theme.BG};
-        color: {theme.GREEN};
-        border: tall {theme.GREEN_DEEP};
-    }}
     """
 
     BINDINGS = [
@@ -62,12 +74,11 @@ class MaskView(Container):
         Binding("p", "cycle_profile", "profile", show=True),
         Binding("t", "toggle_tor",  "tor",     show=True),
         Binding("m", "toggle_mail", "mail",    show=True),
-        # TUI inline export deferred post-1.0; use CLI `babel mask new
-        # --export PATH` for encrypted bundle export.  No `x` binding so
-        # the UI does not advertise a stub action.
         Binding("v", "view_avatar", "view",    show=True),
         Binding("c", "copy",        "copy",    show=True),
-        Binding("escape", "leave",  "back",    show=True),
+        Binding("s", "save_vault",  "save",    show=True),
+        Binding("escape", "leave",  "back",    show=True, priority=True),
+        Binding("alt+0",  "leave",  "menu",    show=False, priority=True),
         Binding("q", "leave",       "quit",    show=False),
     ]
 
@@ -106,7 +117,7 @@ class MaskView(Container):
             yield Static(" ")
             yield Static(
                 "  [n] new  [l] locale  [p] profile  [t] tor  "
-                "[m] mail  [v] view  [c] copy  [Esc] back",
+                "[m] mail  [v] view  [c] copy  [s] save  [Esc] back",
                 classes="status",
             )
 
@@ -136,7 +147,6 @@ class MaskView(Container):
 
     def action_toggle_tor(self) -> None:
         if self.opts.use_tor:
-            # Going to clearnet -- show the red banner via status.
             self._set_status(
                 "clearnet bypass: Tor will NOT be used. press [t] again to revert.",
                 "err",
@@ -149,11 +159,20 @@ class MaskView(Container):
         self._refresh_mode()
 
     def action_leave(self) -> None:
-        # Best-effort scrub before exit.
+        # Best-effort scrub before handing control back to the chrome.
         if self.identity is not None:
             self.identity.zeroize()
             self.identity = None
-        self.app.exit()
+        super().action_leave()
+
+    async def purge_local(self) -> None:
+        """Called by ChromeApp.action_purge_quit on suite exit."""
+        if self.identity is not None:
+            try:
+                self.identity.zeroize()
+            except Exception:
+                pass
+            self.identity = None
 
     def action_view_avatar(self) -> None:
         if self.identity is None:
@@ -177,14 +196,45 @@ class MaskView(Container):
             if self._url_widget is not None:
                 self._url_widget.update(url)
 
+    def action_save_vault(self) -> None:
+        """Push the current identity to the suite Vault.
+
+        Stored as ``ArtifactKind.IDENTITY`` with the handle as label
+        and the Ed25519 fingerprint as key. VOID's lobby reads this
+        list to populate its identity dropdown (see V2_REDESIGN §3.3).
+        """
+        if self.identity is None:
+            self._set_status("no identity yet -- press [n] first", "warn")
+            return
+        vault = getattr(self.app, "vault", None)
+        if vault is None:
+            self._set_status("vault unavailable", "warn")
+            return
+        a = self.identity.alias
+        try:
+            url = mask_build(self.identity)
+        except Exception as e:
+            self._set_status(f"save failed: {type(e).__name__}: {e}", "err")
+            return
+        fingerprint = a.handle
+        try:
+            vault.put(
+                ArtifactKind.IDENTITY,
+                label=f"{a.given} {a.family}",
+                fingerprint=fingerprint,
+                payload=url.encode("utf-8"),
+            )
+        except Exception as e:
+            self._set_status(f"save failed: {type(e).__name__}: {e}", "err")
+            return
+        self._set_status(
+            f"saved to vault as {fingerprint!s} ({len(vault)} item(s))", ""
+        )
+
     def action_new(self) -> None:
         if self._busy:
             return
         self.run_worker(self._generate(), exclusive=True)
-
-    # action_export removed pre-1.0: the TUI prompt was a stub.  Encrypted
-    # export is available via the CLI: `babel mask new --export PATH`.  A
-    # full inline prompt may land post-1.0 (tracked in RELEASE_NOTES).
 
     # ----- worker -------------------------------------------------------
 
@@ -244,20 +294,5 @@ class MaskView(Container):
         self._status.set_classes(f"status {cls}".strip())
 
 
-class MaskApp(App):
-    TITLE = "TOWER OF BABEL / MASK"
-    BINDINGS = [
-        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
-        Binding("ctrl+q", "quit", "quit", show=False, priority=True),
-    ]
+__all__ = ["MaskView"]
 
-    def compose(self) -> ComposeResult:
-        yield MaskView()
-        yield Footer()
-
-
-def run() -> None:
-    MaskApp().run()
-
-
-__all__ = ["MaskView", "MaskApp", "run"]

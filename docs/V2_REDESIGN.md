@@ -1,6 +1,6 @@
 # Tower of Babel v2.0.0 — Monolithic App Redesign
 
-**Status:** design + Phase 1 implementation in progress.
+**Status:** design + Phase 1/2/3/4 implementation done. Awaiting on-device smoke test + review. See §8 for what's in / what's deferred.
 
 > **Note on prior art.** When this doc was drafted, the redesign was
 > framed as "starting from scratch." A closer read of `babel/shell.py`
@@ -484,10 +484,56 @@ findings in the PR.
 
 ## 8. Phases recap
 
-1. **Phase 1 (small — most was already done in v1)**: add `babel/vault.py` (`Vault`, `Artifact`, `ArtifactKind`), wire `self.vault` into `ChromeApp`, plumb `purge_all()` into `action_purge_quit`, add stdlib `unittest` test coverage. The shell, registry, ToolHomeView base, and main menu were already in place from v1; no new code there. **Status: ✓ done — see this PR.**
-2. **Phase 2 (8-10 d)**: tool migrations in the order MASK → STRIP → CARRIER → MIRAGE → VOID, one PR per tool. Each tool's home view today is just an info card listing CLI commands; Phase 2 replaces that with the tool's real interactive UI (port `<Tool>App(App)` → screens pushed by `<Tool>HomeView`). Each landing green on all 4 smoke-test platforms.
-3. **Phase 3 (1-2 d)**: delete the legacy CLI shims, add `--exec` parser, remove `[project.scripts]` aliases. Reinstall + verify `which void` returns nothing.
-4. **Phase 4 (2-3 d)**: rewrite README, USAGE.md, ARCHITECTURE.md, CHANGELOG, RELEASE_NOTES, bump VERSION to 2.0.0, audit install scripts.
+1. **Phase 1** — `babel/vault.py` (`Vault`, `Artifact`, `ArtifactKind`),
+   wired into `ChromeApp.__init__` and `action_purge_quit`. 18 stdlib
+   `unittest` cases. The shell, registry, ToolHomeView base, and main
+   menu were already in place from v1. **Status: ✓ done.**
+
+2. **Phase 2** — tool migrations. MASK / STRIP / CARRIER / MIRAGE's
+   `<Tool>View(Container)` widget trees were lifted into
+   `<Tool>View(ToolHomeView)` in their existing `tools/<tool>/app.py`
+   files; the standalone `<Tool>App(App)` wrappers are deleted; CLI
+   `_run_interactive` fallbacks now print a redirect rather than
+   launching a TUI. MASK additionally got `[s] save to vault` so
+   identities flow into the cross-tool Vault. VOID's full migration
+   is deferred to v2.1.0 (the screens are `textual.Screen` subclasses
+   that would each need to become Containers; see §7.5). Transitional
+   behaviour: `[Enter]` on VoidHomeView exits the suite app with
+   `return_value=("launch_void", argv)` and `babel.__main__` re-execs
+   VOID standalone, returning to the menu on exit. **Status: ✓ done
+   for MASK/STRIP/CARRIER/MIRAGE; VOID transitional.**
+
+3. **Phase 3** — `babel --exec <tool> [args...]` dispatch table in
+   `babel/__main__.py`. Legacy top-level aliases (`void`, `mask`,
+   `strip`, `carrier`, `mirage`) removed from `[project.scripts]` in
+   `pyproject.toml`. `babel <tool>` and `babel <tool> <op>` now print
+   a usage-error redirect. **Status: ✓ done.**
+
+4. **Phase 4** — `VERSION` and `pyproject.toml` bumped to `2.0.0`.
+   `CHANGELOG.md` has the v2.0.0 stanza with breaking-change list,
+   additions, and known deviations. `README.md` "Use" section
+   rewritten to point at `babel` + `--exec`. Install scripts left as
+   is (they install via pip, which picks up the new `[project.scripts]`
+   without changes). USAGE.md / ARCHITECTURE.md updates left for a
+   follow-up release polish PR — the README + CHANGELOG already cover
+   the user-facing changes. **Status: ✓ done for the v2.0.0 cut.**
+
+### Smoke tests run
+
+- `python -m unittest tests.test_vault -v` → 18/18 pass
+- `python -m babel --version` → `babel 2.0.0`
+- `python -m babel --help` → new help text (no legacy aliases)
+- `python -m babel mask new` → expected v2 redirect error (exit 2)
+- `python -m babel --exec mask --help` → forwards to mask argparse
+- `python -m babel --exec` → lists valid choices, exits 2
+- `python -m babel --exec bogus_tool` → lists valid choices, exits 2
+- `view_class_for("<tool>")` resolves to the migrated view for
+  mask/strip/carrier/mirage and to the transitional info card for void
+
+UI smoke (chrome rendering, key bindings, identity flow MASK → Vault)
+needs a real terminal — the dev container is headless. The user is
+asked to run `babel` on Linux + Termux + Windows + macOS and confirm
+the menu navigation matches the wireframes in §3.
 
 ---
 

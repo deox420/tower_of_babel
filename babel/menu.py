@@ -1,19 +1,17 @@
-"""Tower of Babel main menu -- Phase 1.
+"""Tower of Babel main menu — v2.0.0.
 
 Renders the five-entry menu from MASTER.md Section 6.1 as a *view*
-that mounts inside ``babel.shell.Chrome``'s content slot.  The
-chrome owns the outer frame and the footer; the menu owns only its
-card-shaped centerpiece.
+that mounts inside ``babel.shell.Chrome``'s content slot. The chrome
+owns the outer frame and the footer; the menu owns its card-shaped
+centerpiece.
 
-Only entry [1] VOID is wired to a real tool today.  Entries 2-5
-render dimmed with ``(not yet built)`` per the Phase-0 contract and
-their keypresses are no-ops.
-
-Selecting VOID calls ``app.enter_tool('void')``, which in Phase 1
-still exits the ``ChromeApp`` with ``return_value='void'`` so
-``babel.__main__`` can launch ``VoidApp``.  When VOID later moves
-fully inside the chrome (post-1.0 work, MASTER.md 4.4), only
-``enter_tool`` changes; the menu stays the same.
+All five entries are live: MASK, STRIP, CARRIER and MIRAGE mount their
+real interactive views in-chrome (``tools/<tool>/app.py``); VOID
+mounts a transitional info card whose ``[Enter]`` binding exits the
+suite app so ``babel.__main__`` can launch ``VoidApp`` standalone.
+When VOID exits the suite app re-launches and the user lands back on
+this menu. See docs/V2_REDESIGN.md §7.5 for the v2.1.0 plan to bring
+VOID fully in-chrome.
 """
 from __future__ import annotations
 
@@ -162,11 +160,11 @@ class MainMenuView(Container):
     def action_select(self, tool: str) -> None:
         """Hand the chrome a chosen tool name.
 
-        ``ChromeApp.enter_tool`` in Phase 1 still exits the app with
-        ``return_value=<tool>``; the outer ``babel.__main__`` runs the
-        real tool.  When a tool migrates into the chrome itself it
-        will register a Service and push_view its home; ``enter_tool``
-        is the single point that changes.
+        ``ChromeApp.enter_tool`` mounts the tool's home view in the
+        content slot. For MASK/STRIP/CARRIER/MIRAGE this is the real
+        interactive view from ``tools/<tool>/app.py``; for VOID it's
+        the transitional info card whose ``[Enter]`` triggers a
+        re-exec into the standalone client (see ``babel.__main__``).
         """
         self.app.enter_tool(tool)
 

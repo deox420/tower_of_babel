@@ -332,13 +332,13 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def _run_interactive() -> int:
-    try:
-        from tools.carrier.app import run as run_app
-    except ImportError as e:
-        sys.stderr.write(f"carrier: TUI requires textual: {e}\n")
-        return 2
-    run_app()
-    return 0
+    """Removed in v2.0.0 — interactive CARRIER is reached via `babel`."""
+    sys.stderr.write(
+        "carrier: interactive CARRIER is now part of the babel menu in v2.0.0.\n"
+        "         run `babel` and pick `[4] CARRIER`, or use "
+        "`babel --exec carrier <op> ...` for one-shot scripting.\n"
+    )
+    return 2
 
 
 # ---------------------------------------------------------------------------

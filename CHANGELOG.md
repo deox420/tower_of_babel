@@ -2,6 +2,59 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## v2.0.0 — unreleased  (monolithic-app redesign)
+
+The suite collapses into a single Textual app. Each tool that used
+to ship as its own standalone `<Tool>App(App)` (MASK, STRIP, CARRIER,
+MIRAGE) is now an in-chrome view mounted in `babel.shell.ChromeApp`'s
+content slot. The chrome (header, slot bar, footer, hints line) draws
+once and stays put; tools come and go inside it.
+
+### Breaking changes
+
+- **Top-level aliases removed.** `void`, `mask`, `strip`, `carrier`, and
+  `mirage` are no longer installed by `pip install tower-of-babel`. The
+  only client entry point is `babel`.
+- **`babel <tool>` removed.** `babel mask`, `babel strip new`, etc. now
+  exit with a usage error pointing at the new surface. Run `babel` and
+  pick the tool from the menu; for scripting use
+  `babel --exec <tool> [args...]`.
+- **Standalone `<Tool>App` classes deleted** in `tools/<tool>/app.py`
+  for MASK, STRIP, CARRIER, MIRAGE. The `<Tool>View(Container)` widgets
+  are repurposed as `<Tool>View(ToolHomeView)` and mount inside the
+  chrome.
+- **`tools/<tool>/cli.py:_run_interactive` no longer launches a TUI** —
+  it prints a redirect to the new entry point and exits 2.
+
+### Added
+
+- **`babel/vault.py`** — `Vault`, `Artifact`, `ArtifactKind`. In-memory
+  cross-tool artifact store. MASK now has an `[s]` binding that puts
+  the current identity into the suite Vault; downstream consumers
+  (VOID lobby identity dropdown, CARRIER signing picker) will pick it
+  up as those flows land. Payloads use `SecureBytes` so they're mlock'd
+  where the platform allows and zeroized on drop / suite quit.
+- **`babel --exec <tool> [args...]`** — one-shot scripting surface that
+  dispatches to each tool's existing argparse main without launching
+  the chrome. Replaces the legacy `babel <tool> <op>` invocation.
+- **`docs/V2_REDESIGN.md`** — design spec for the redesign: wireframes,
+  API contracts, cross-platform notes, per-tool migration plan.
+- **`tests/test_vault.py`** — 18 stdlib `unittest` cases covering the
+  Vault contract; first tests in the repo.
+
+### Known deviations
+
+- **VOID's full in-chrome migration is deferred to v2.1.0.** VOID's
+  lobby / connecting / chat / starmap screens use Textual's `Screen`
+  class, which push above the chrome rather than mounting inside it.
+  Porting them to Containers + designing a clean back-to-chrome flow
+  is more work than fits the v2.0.0 cut. Transitional behaviour:
+  picking `[1] VOID` from the menu shows an info card; pressing
+  `[Enter]` exits the suite app with `return_value=("launch_void", [])`
+  and `babel.__main__` re-execs VOID standalone. When VOID exits the
+  suite menu re-launches. `babel --exec void --make-invite` and the
+  other VOID scripted ops keep working.
+
 ## v1.0.0 — 2026-05-17  (Tower of Babel -- first suite release)
 
 VOID stops being a single tool and becomes the first room of the

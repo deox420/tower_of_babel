@@ -1,21 +1,24 @@
-"""CARRIER Textual screen -- minimal interactive front-end.
+"""CARRIER in-chrome interactive view.
 
-Mode toggles: embed (default), extract, capacity, inspect. The
-screen reuses ``shared.ui.diff_view``-style verdict tables and
-``shared.ui.hex_view`` for the payload preview.
+Lives in `babel.shell.ChromeApp`'s content slot. Pre-v2 this module
+also hosted a standalone `CarrierApp(App)` wrapper that was launched
+via `babel carrier`; that wrapper is gone in v2.0.0 — the menu is
+the single entry into CARRIER. See docs/V2_REDESIGN.md §7.3.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 from cryptography.exceptions import InvalidTag
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
-from textual.widgets import Footer, Input, Static
+from textual.containers import Vertical
+from textual.widgets import Input, Static
 
-from babel import theme
+from babel import art, theme
 from babel.art import BABEL_TAGLINE
+from babel.views import ToolHomeView
 from shared.ui.hex_view import HexView
 from tools.carrier.capacity import PayloadTooLargeError
 from tools.carrier.chisquare import chi_square
@@ -27,13 +30,26 @@ from tools.carrier.core import png as png_core
 from tools.carrier.core import wav as wav_core
 
 
-class CarrierView(Container):
+class CarrierView(ToolHomeView):
+    """CARRIER's interactive home view."""
+
+    name: ClassVar[str] = "CARRIER"
+    flavour: ClassVar[str] = "ACTION"
+    logo: ClassVar[str] = art.CARRIER_LOGO
+    summary: ClassVar[str] = (
+        "Steganography. AES-256-GCM payload + Argon2id KDF hidden in "
+        "the LSB plane of a PNG or WAV cover. No magic header in output."
+    )
+    cli_examples: ClassVar[list[tuple[str, str]]] = []
+    threat_note: ClassVar[str] = ""
+
     DEFAULT_CSS = f"""
     CarrierView {{
         background: {theme.BG};
         color: {theme.GREEN};
         height: 1fr;
         width: 1fr;
+        padding: 1 2;
     }}
     CarrierView .title {{ color: {theme.GREEN}; text-style: bold; }}
     CarrierView .tagline {{ color: {theme.CYAN}; text-style: dim italic; }}
@@ -52,7 +68,8 @@ class CarrierView(Container):
         Binding("x", "set_mode('extract')",  "extract",  show=True),
         Binding("c", "set_mode('capacity')", "capacity", show=True),
         Binding("i", "set_mode('inspect')",  "inspect",  show=True),
-        Binding("escape", "leave", "back", show=True),
+        Binding("escape", "leave", "back", show=True, priority=True),
+        Binding("alt+0",  "leave", "menu", show=False, priority=True),
     ]
 
     def __init__(self) -> None:
@@ -84,11 +101,9 @@ class CarrierView(Container):
                          "[i] inspect  [Esc] back",
                          classes="status")
 
-    # ----- mode handling ---------------------------------------------------
+    # ----- mode handling ------------------------------------------------
 
     def _mode_text(self) -> str:
-        glyphs = {"embed": "active", "extract": "active",
-                  "capacity": "active", "inspect": "active"}
         return f"  mode: {self.mode}"
 
     def action_set_mode(self, mode: str) -> None:
@@ -97,10 +112,7 @@ class CarrierView(Container):
             if self._mode_line is not None:
                 self._mode_line.update(self._mode_text())
 
-    def action_leave(self) -> None:
-        self.app.exit()
-
-    # ----- submit ----------------------------------------------------------
+    # ----- submit -------------------------------------------------------
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         cover_path = self.query_one("#cover", Input).value.strip()
@@ -139,7 +151,7 @@ class CarrierView(Container):
         elif self.mode == "extract":
             self._do_extract(cover_path, cover_bytes, passphrase, fmt)
 
-    # ----- per-mode --------------------------------------------------------
+    # ----- per-mode -----------------------------------------------------
 
     def _do_capacity(self, cover_bytes: bytes, fmt: str) -> None:
         cap = (png_core.cover_capacity(png_core.open_cover(cover_bytes))
@@ -222,20 +234,4 @@ class CarrierView(Container):
         self._status.set_classes(f"status {cls}".strip())
 
 
-class CarrierApp(App):
-    TITLE = "TOWER OF BABEL / CARRIER"
-    BINDINGS = [
-        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
-        Binding("ctrl+q", "quit", "quit", show=False, priority=True),
-    ]
-
-    def compose(self) -> ComposeResult:
-        yield CarrierView()
-        yield Footer()
-
-
-def run() -> None:
-    CarrierApp().run()
-
-
-__all__ = ["CarrierView", "CarrierApp", "run"]
+__all__ = ["CarrierView"]

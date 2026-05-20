@@ -232,13 +232,17 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
 
 def _run_interactive() -> int:
-    try:
-        from tools.mask.app import run as run_app
-    except ImportError as e:
-        sys.stderr.write(f"mask: TUI requires textual: {e}\n")
-        return EX_USAGE
-    run_app()
-    return EX_OK
+    """Removed in v2.0.0 — interactive MASK is reached via `babel`.
+
+    Returns a usage error pointing at the new entry point so old
+    docs and muscle memory get a clear redirect rather than a crash.
+    """
+    sys.stderr.write(
+        "mask: interactive MASK is now part of the babel menu in v2.0.0.\n"
+        "      run `babel` and pick `[2] MASK`, or use `babel --exec mask "
+        "new ...` for one-shot scripting.\n"
+    )
+    return EX_USAGE
 
 
 # ---------------------------------------------------------------------------

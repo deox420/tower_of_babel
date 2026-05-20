@@ -1,33 +1,40 @@
-"""STRIP Textual screen -- mounted in the babel chrome's content slot.
+"""STRIP in-chrome interactive view.
 
-Minimal interactive surface: input field for a path, the same
-``render_diff`` table used by the CLI, an aggressive-mode toggle,
-and a write/dry-run toggle. Full file-picker UI is Phase 2b work.
-
-Because Phase 1's ``ChromeApp.enter_tool`` still exits the app
-with ``return_value=<tool>`` (see ``babel.__main__``), STRIP runs
-as its own ``StripApp`` for now. The screen is built so it can be
-re-mounted under a future in-chrome view by lifting ``StripView``
-out of the ``StripApp`` shell.
+Lives in `babel.shell.ChromeApp`'s content slot. Pre-v2 this module
+also hosted a standalone `StripApp(App)` wrapper that was launched
+via `babel strip`; that wrapper is gone in v2.0.0 — the menu is the
+single entry into STRIP. See docs/V2_REDESIGN.md §7.2.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Footer, Input, Static
+from textual.containers import Vertical
+from textual.widgets import Input, Static
 
-from babel import theme
+from babel import art, theme
 from babel.art import BABEL_TAGLINE
+from babel.views import ToolHomeView
 from shared.ui.diff_view import DiffTable
 from tools.strip.core.pdf import EncryptedPDFError
 from tools.strip.pipeline import SUPPORTED_EXTENSIONS, strip_path
 
 
-class StripView(Container):
-    """STRIP's main screen contents (no chrome of its own)."""
+class StripView(ToolHomeView):
+    """STRIP's interactive home view."""
+
+    name: ClassVar[str] = "STRIP"
+    flavour: ClassVar[str] = "ACTION"
+    logo: ClassVar[str] = art.STRIP_LOGO
+    summary: ClassVar[str] = (
+        "Metadata laundry. Removes EXIF / XMP / IPTC, PNG text chunks, "
+        "PDF /Info + /Metadata, DOCX core/app/custom props, MP3 ID3 + APE."
+    )
+    cli_examples: ClassVar[list[tuple[str, str]]] = []
+    threat_note: ClassVar[str] = ""
 
     DEFAULT_CSS = f"""
     StripView {{
@@ -35,6 +42,7 @@ class StripView(Container):
         color: {theme.GREEN};
         height: 1fr;
         width: 1fr;
+        padding: 1 2;
     }}
     StripView .title {{
         color: {theme.GREEN};
@@ -68,14 +76,15 @@ class StripView(Container):
         Binding("a", "toggle_aggressive", "aggressive", show=True),
         Binding("h", "toggle_hash_rename", "hash-rename", show=True),
         Binding("w", "toggle_dry_run", "write", show=True),
-        Binding("escape", "leave", "back", show=True),
+        Binding("escape", "leave", "back", show=True, priority=True),
+        Binding("alt+0",  "leave", "menu", show=False, priority=True),
     ]
 
     def __init__(self) -> None:
         super().__init__()
         self.aggressive = False
         self.hash_rename = False
-        self.dry_run = True  # safe default in the TUI; w toggles to write
+        self.dry_run = True
         self._diff: DiffTable | None = None
         self._status: Static | None = None
 
@@ -106,7 +115,7 @@ class StripView(Container):
             f"[Esc] back"
         )
 
-    # ------- actions -------------------------------------------------------
+    # ------- actions ----------------------------------------------------
 
     def action_toggle_aggressive(self) -> None:
         self.aggressive = not self.aggressive
@@ -120,14 +129,11 @@ class StripView(Container):
         self.dry_run = not self.dry_run
         self._refresh_modes()
 
-    def action_leave(self) -> None:
-        self.app.exit()
-
     def _refresh_modes(self) -> None:
         widget = self.query_one("#modes", Static)
         widget.update(self._mode_line())
 
-    # ------- input handling ------------------------------------------------
+    # ------- input handling ---------------------------------------------
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         raw = event.value.strip().strip('"').strip("'")
@@ -138,7 +144,8 @@ class StripView(Container):
             self._set_status(f"no such path: {path}", "err")
             return
         if not path.is_file():
-            self._set_status("path is a directory; use the CLI --batch", "warn")
+            self._set_status("path is a directory; use `babel --exec strip --batch ...`",
+                             "warn")
             return
 
         try:
@@ -180,29 +187,4 @@ class StripView(Container):
         self._status.set_classes(f"status {cls}".strip())
 
 
-class StripApp(App):
-    """Standalone Textual app for STRIP (Phase 2 hand-off pattern).
-
-    When STRIP later moves fully inside the chrome (post-1.0), the
-    chrome will instantiate ``StripView`` directly via
-    ``push_view``; this app shell goes away.
-    """
-
-    CSS = ""
-    TITLE = "TOWER OF BABEL / STRIP"
-
-    BINDINGS = [
-        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
-        Binding("ctrl+q", "quit", "quit", show=False, priority=True),
-    ]
-
-    def compose(self) -> ComposeResult:
-        yield StripView()
-        yield Footer()
-
-
-def run() -> None:
-    StripApp().run()
-
-
-__all__ = ["StripView", "StripApp", "run"]
+__all__ = ["StripView"]
