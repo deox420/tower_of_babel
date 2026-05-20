@@ -2,6 +2,64 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased — v2.0.x polish
+
+UX pass on the monolithic-app shell after first-real-user feedback
+("funciona como el culo"). Adds clickable affordances on every tool
+home view; nothing in the v2.0.0 architecture changes.
+
+### Fixed
+
+- **MIRAGE silent worker failures.** `_start_engine` only caught
+  `RuntimeError` and `ImportError`; any other exception vanished
+  into the Textual worker with no status update. Now catches all
+  `Exception`, plus a pre-flight `detect_socks_port` check so a
+  missing Tor reports a clear actionable message instead of falling
+  over inside httpx.
+- **MASK Enter has no effect.** Added `Binding("enter", "new", ...)`
+  so pressing Enter in the view generates a new identity (matches
+  the button affordance).
+
+### Added
+
+- **Clickable primary button + important toggles per tool**
+  (matches `tools/void/client/screens/lobby.py`'s pattern):
+  - MASK: `[ Generate ]`, `[ Tor: on / CLEARNET ]`, `[ Mail: on/off ]`,
+    `[ Save to Vault ]`
+  - STRIP: `[ Aggressive: on/off ]`, `[ Hash-rename: on/off ]`,
+    `[ Write clean copy ]` (appears only when the scan finds metadata)
+  - CARRIER: mode-switcher row `[ Embed ] [ Extract ] [ Capacity ]
+    [ Inspect ]` + `[ Run ]` primary; per-mode hint line explains
+    which Inputs the active mode reads; unused Inputs are disabled
+  - MIRAGE: `[ Start engine ]` / `[ Stop engine ]` (label flips on
+    state), `[ Tor: on / CLEARNET ]`, `[ Honest: on/off ]`
+  - Main menu: each tool row is now a clickable `Button` (digit
+    `1`-`5` shortcuts still work)
+- **STRIP scan-first flow.** Entering a path always runs
+  `strip_path(dry_run=True)` and shows a big banner:
+  `✅ SIN METADATOS — la imagen ya está limpia` (green) or
+  `❌ TIENE N CAMPOS DE METADATOS` (red) with the diff table
+  beneath. The `[ Write clean copy ]` button only appears when
+  there's something to strip.
+- **CARRIER per-mode discoverability.** The hint line under the
+  mode buttons states exactly which Inputs are read: "EMBED — fill
+  cover + payload + passphrase, click [Run] or press Enter". Unused
+  Inputs (payload in extract/capacity/inspect; passphrase in
+  capacity/inspect) are disabled so the user can't fill them by
+  mistake.
+- **Global Button styling.** Chrome's `DEFAULT_CSS` now defines a
+  unified Button look (mirrors `tools/void/client/style.tcss:80-89`)
+  so MASK/STRIP/CARRIER/MIRAGE/MENU inherit consistent styling
+  without each redefining it.
+
+### Removed
+
+- STRIP's `[w] toggle dry-run` binding. The write action now lives
+  exclusively behind the `[ Write clean copy ]` button that appears
+  after a scan finds metadata. The keyboard shortcut to confirm
+  writing is now Enter on the button (which is focusable like any
+  other widget).
+
 ## v2.0.0 — unreleased  (monolithic-app redesign)
 
 The suite collapses into a single Textual app. Each tool that used

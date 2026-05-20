@@ -14,12 +14,13 @@ from typing import ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import Static
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Static
 
 from babel import art, theme
 from babel.art import BABEL_TAGLINE
 from babel.views import ToolHomeView
+from shared.tor.socks_detect import detect_socks_port
 
 from tools.mirage.engine import (
     EngineConfig, Event, HttpxTransport, MirageEngine,
@@ -59,6 +60,13 @@ class MirageView(ToolHomeView):
     MirageView .status.err {{ color: {theme.RED}; }}
     MirageView .field {{ color: {theme.GREEN}; }}
     MirageView .url {{ color: {theme.CYAN}; }}
+    MirageView #mirage-button-row {{
+        height: auto;
+        width: 100%;
+        margin-top: 1;
+        margin-bottom: 1;
+    }}
+    MirageView #mirage-button-row Button {{ margin-right: 1; }}
     """
 
     BINDINGS = [
@@ -85,10 +93,14 @@ class MirageView(ToolHomeView):
         self.config = EngineConfig()
         self.engine: MirageEngine | None = None
         self._honest = False
+        self._busy = False
         self._mode_line: Static | None = None
         self._status_line: Static | None = None
         self._snapshot_line: Static | None = None
         self._events_widget: Static | None = None
+        self._start_button: Button | None = None
+        self._tor_button: Button | None = None
+        self._honest_button: Button | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -97,9 +109,20 @@ class MirageView(ToolHomeView):
             yield Static(" ")
             self._mode_line = Static(self._mode_text(), classes="status")
             yield self._mode_line
-            yield Static(" ")
+            with Horizontal(id="mirage-button-row"):
+                self._start_button = Button(self._start_label(),
+                                            id="mirage-start",
+                                            variant=self._start_variant())
+                yield self._start_button
+                self._tor_button = Button(self._tor_label(),
+                                          id="mirage-tor",
+                                          variant=self._tor_variant())
+                yield self._tor_button
+                self._honest_button = Button(self._honest_label(),
+                                             id="mirage-honest")
+                yield self._honest_button
             self._snapshot_line = Static(
-                "  (press [s] to start; engine is idle)",
+                "  (click [Start engine] or press [s]; engine is idle)",
                 classes="field",
             )
             yield self._snapshot_line
@@ -115,6 +138,47 @@ class MirageView(ToolHomeView):
                 "[c] clear  [Esc] back",
                 classes="status",
             )
+
+    def _start_label(self) -> str:
+        if self.engine is not None and self.engine.is_running():
+            return "[ Stop engine ]"
+        return "[ Start engine ]"
+
+    def _start_variant(self) -> str:
+        if self.engine is not None and self.engine.is_running():
+            return "error"
+        return "success"
+
+    def _tor_label(self) -> str:
+        return "[ Tor: on ]" if self.config.use_tor else "[ Tor: CLEARNET ]"
+
+    def _tor_variant(self) -> str:
+        return "default" if self.config.use_tor else "warning"
+
+    def _honest_label(self) -> str:
+        return f"[ Honest: {'on' if self._honest else 'off'} ]"
+
+    def _refresh_action_buttons(self) -> None:
+        if self._start_button is not None:
+            self._start_button.label = self._start_label()
+            self._start_button.variant = self._start_variant()
+        if self._tor_button is not None:
+            self._tor_button.label = self._tor_label()
+            self._tor_button.variant = self._tor_variant()
+        if self._honest_button is not None:
+            self._honest_button.label = self._honest_label()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid == "mirage-start":
+            if self.engine is not None and self.engine.is_running():
+                self.action_stop()
+            else:
+                self.action_start()
+        elif bid == "mirage-tor":
+            self.action_toggle_tor()
+        elif bid == "mirage-honest":
+            self.action_honest()
 
     def on_mount(self) -> None:
         # ToolHomeView's on_mount focuses the widget; keep that and
@@ -142,6 +206,10 @@ class MirageView(ToolHomeView):
             self._mode_line.update(self._mode_text())
 
     def _tick(self) -> None:
+        # Always keep the action buttons in sync with engine state so a
+        # silently-failed start (rare but seen on Windows in the field)
+        # is at least visible from the label.
+        self._refresh_action_buttons()
         if self.engine is None or self._snapshot_line is None:
             return
         snap = self.engine.snapshot()
@@ -214,6 +282,7 @@ class MirageView(ToolHomeView):
             )
         self.config.use_tor = not self.config.use_tor
         self._refresh_mode()
+        self._refresh_action_buttons()
 
     def action_honest(self) -> None:
         self._honest = not self._honest
@@ -221,6 +290,7 @@ class MirageView(ToolHomeView):
         if not self._honest and self._events_widget is not None:
             self._events_widget.update("")
         self._refresh_mode()
+        self._refresh_action_buttons()
 
     def action_clear(self) -> None:
         if self._events_widget is not None:
@@ -245,10 +315,20 @@ class MirageView(ToolHomeView):
         self._refresh_mode()
 
     def action_start(self) -> None:
+        if self._busy:
+            self._set_status("already starting…", "warn")
+            return
         if self.engine is not None and self.engine.is_running():
             self._set_status("already running", "warn")
             return
+        self._set_status("starting engine…", "")
         self.run_worker(self._start_engine(), exclusive=True)
+
+    def action_stop(self) -> None:
+        if self.engine is None:
+            self._set_status("engine is not running", "warn")
+            return
+        self.run_worker(self._stop_engine(), exclusive=True)
 
     def action_pause(self) -> None:
         if self.engine is None:
@@ -277,27 +357,82 @@ class MirageView(ToolHomeView):
     # ----- workers -----------------------------------------------------
 
     async def _start_engine(self) -> None:
-        try:
-            transport = HttpxTransport(use_tor=self.config.use_tor)
-        except RuntimeError as e:
-            self._set_status(str(e), "err")
-            return
-        except ImportError:
-            self._set_status("httpx not installed -- see `babel --exec mirage --setup`",
-                             "err")
-            return
+        """Start MirageEngine, surfacing every failure to the user.
 
-        def on_event(_ev: Event) -> None:
-            return
-
-        self.engine = MirageEngine(
-            config=self.config, transport=transport, on_event=on_event,
-        )
+        Pre-flight: if Tor is requested but unreachable, fail fast
+        with an explicit message instead of letting httpx fall over
+        with a generic socks error. Wrap the rest in a catch-all so
+        the Textual worker can't silently die — every exception is
+        rendered as a status line.
+        """
+        self._busy = True
         try:
+            # 1. Pre-flight Tor check.
+            if self.config.use_tor:
+                port = detect_socks_port(timeout=1.0)
+                if port is None:
+                    self._set_status(
+                        "Tor SOCKS5 no detectado en :9050 :9150 :9151. "
+                        "Verificá que Tor esté corriendo, o presioná "
+                        "[t] / clic [Tor: on/CLEARNET] para clearnet.",
+                        "err",
+                    )
+                    return
+
+            # 2. Build transport.
+            try:
+                transport = HttpxTransport(use_tor=self.config.use_tor)
+            except ImportError as e:
+                self._set_status(
+                    f"httpx not installed: {e} — see "
+                    f"`babel --exec mirage --setup`",
+                    "err",
+                )
+                return
+
+            def on_event(_ev: Event) -> None:
+                return
+
+            # 3. Build + start engine.
+            self.engine = MirageEngine(
+                config=self.config, transport=transport, on_event=on_event,
+            )
             await self.engine.start()
             self._set_status("engine started", "")
         except RuntimeError as e:
-            self._set_status(str(e), "err")
+            # Tor reachability errors from the engine path itself,
+            # rate-limit violations, etc.
+            self._set_status(f"start failed: {e}", "err")
+            self.engine = None
+        except Exception as e:
+            # The class of error the user was hitting in the v2.0.0
+            # cut — uncaught exceptions vanished into the worker.
+            self._set_status(
+                f"start failed: {type(e).__name__}: {e}",
+                "err",
+            )
+            self.engine = None
+        finally:
+            self._busy = False
+            self._refresh_action_buttons()
+
+    async def _stop_engine(self) -> None:
+        """Stop the engine without leaving the view."""
+        if self.engine is None:
+            return
+        self._busy = True
+        try:
+            await self.engine.stop()
+            self._set_status("engine stopped", "")
+        except Exception as e:
+            self._set_status(
+                f"stop failed: {type(e).__name__}: {e}",
+                "err",
+            )
+        finally:
+            self.engine = None
+            self._busy = False
+            self._refresh_action_buttons()
 
     # ----- helpers -----------------------------------------------------
 

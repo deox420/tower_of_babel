@@ -418,6 +418,39 @@ class Chrome(Screen):
         color: {theme.CYAN};
         padding: 0 1;
     }}
+    /* Global Button look (mirrors tools/void/client/style.tcss:80-89
+       so click affordances are consistent across tools). Per-view
+       CSS can still override id-specific variants. */
+    Chrome Button {{
+        background: {theme.BG};
+        color: {theme.GREEN};
+        border: solid {theme.GREEN} 40%;
+        min-width: 12;
+        height: 3;
+    }}
+    Chrome Button:hover {{
+        background: {theme.BG};
+        border: solid {theme.CYAN};
+    }}
+    Chrome Button:focus {{
+        border: solid {theme.CYAN};
+    }}
+    Chrome Button.-success {{
+        color: {theme.GREEN};
+        border: solid {theme.GREEN};
+    }}
+    Chrome Button.-warning {{
+        color: {theme.AMBER};
+        border: solid {theme.AMBER};
+    }}
+    Chrome Button.-error {{
+        color: {theme.RED};
+        border: solid {theme.RED};
+    }}
+    Chrome Button.-primary {{
+        color: {theme.CYAN};
+        border: solid {theme.CYAN};
+    }}
     """
 
     BINDINGS: list[Binding] = []   # ChromeApp owns the global hotkeys.
