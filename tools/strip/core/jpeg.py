@@ -267,8 +267,24 @@ def _explode_exif(tiff: bytes) -> list[FieldRemoved]:
 
     visit(ifd0_off, _IFD0_TAGS, "EXIF.", follow_pointers=True)
 
-    if not rows:
-        rows.append(FieldRemoved("EXIF", f"{len(tiff)} bytes"))
+    # Fill in (not present) rows for every known tag we did NOT see,
+    # so the user can answer "does this photo have X?" by scanning the
+    # full schema. The UI's `[ Show: non-empty ]` toggle hides these
+    # when the user only wants signal.
+    seen_names: set[str] = {row.field for row in rows}
+    for label in _IFD0_TAGS.values():
+        full = f"EXIF.{label}"
+        if full not in seen_names:
+            rows.append(FieldRemoved(full, "(not present)"))
+    for label in _EXIF_IFD_TAGS.values():
+        full = f"EXIF.{label}"
+        if full not in seen_names:
+            rows.append(FieldRemoved(full, "(not present)"))
+    for label in _GPS_IFD_TAGS.values():
+        full = f"GPS.{label}"
+        if full not in seen_names:
+            rows.append(FieldRemoved(full, "(not present)"))
+
     return rows
 
 

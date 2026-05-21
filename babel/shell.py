@@ -593,13 +593,15 @@ class Chrome(Screen):
 
         if cls_name == "MainMenuView":
             if compact:
-                parts = [f"{k('1-5')} tool",
+                parts = [f"{k('1-7')} tool",
                          f"{k('q')} quit",
                          f"{k('Ctrl+C')} exit"]
             else:
                 parts = [
-                    f"{k('1')} VOID", f"{k('2')} MASK", f"{k('3')} STRIP",
-                    f"{k('4')} CARRIER", f"{k('5')} MIRAGE",
+                    f"{k('1')} VOID-S", f"{k('2')} VOID-SC",
+                    f"{k('3')} VOID-C", f"{k('4')} MASK",
+                    f"{k('5')} STRIP", f"{k('6')} CARRIER",
+                    f"{k('7')} MIRAGE",
                     f"{k('q')} quit", f"{k('Ctrl+C')} exit",
                 ]
             return sep.join(parts)

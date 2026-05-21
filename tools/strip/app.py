@@ -112,18 +112,26 @@ class StripView(ToolHomeView):
         Binding("alt+0",  "leave", "menu", show=False, priority=True),
     ]
 
+    # Marker strings the parsers use for "this field is not in the
+    # file". Rows with these values are filtered out when the user
+    # toggles `[ Show: non-empty ]`.
+    _EMPTY_MARKERS = ("(not present)", "(empty)")
+
     def __init__(self) -> None:
         super().__init__()
         self.aggressive = False
         self.hash_rename = False
+        self.show_all = True
         self._diff: DiffTable | None = None
         self._status: Static | None = None
         self._banner: Static | None = None
         self._write_button: Button | None = None
         self._aggressive_button: Button | None = None
         self._hash_button: Button | None = None
+        self._show_button: Button | None = None
         self._last_path: Path | None = None
         self._last_has_metadata = False
+        self._last_rows: list = []
 
     def compose(self) -> ComposeResult:
         prompt_glyph = theme.glyph("prompt")
@@ -140,6 +148,9 @@ class StripView(ToolHomeView):
                 self._hash_button = Button(self._hash_label(),
                                            id="strip-hash-rename")
                 yield self._hash_button
+                self._show_button = Button(self._show_label(),
+                                           id="strip-show")
+                yield self._show_button
             yield Input(placeholder=f"{prompt_glyph} path/to/file ... (Enter to scan)",
                         id="path-input")
             self._banner = Static("", classes="banner")
@@ -166,6 +177,9 @@ class StripView(ToolHomeView):
     def _hash_label(self) -> str:
         return f"[ Hash-rename: {'on' if self.hash_rename else 'off'} ]"
 
+    def _show_label(self) -> str:
+        return f"[ Show: {'all' if self.show_all else 'non-empty'} ]"
+
     # ------- actions ----------------------------------------------------
 
     def action_toggle_aggressive(self) -> None:
@@ -181,6 +195,21 @@ class StripView(ToolHomeView):
         if self._hash_button is not None:
             self._hash_button.label = self._hash_label()
 
+    def action_toggle_show(self) -> None:
+        self.show_all = not self.show_all
+        if self._show_button is not None:
+            self._show_button.label = self._show_label()
+        if self._diff is not None and self._last_rows:
+            self._diff.set_rows(self._filtered_rows())
+
+    def _filtered_rows(self) -> list:
+        if self.show_all:
+            return list(self._last_rows)
+        return [
+            r for r in self._last_rows
+            if r.before not in self._EMPTY_MARKERS
+        ]
+
     # ------- mouse handling ---------------------------------------------
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -189,6 +218,8 @@ class StripView(ToolHomeView):
             self.action_toggle_aggressive()
         elif bid == "strip-hash-rename":
             self.action_toggle_hash_rename()
+        elif bid == "strip-show":
+            self.action_toggle_show()
         elif bid == "strip-write":
             self._write_clean_copy()
 
@@ -242,27 +273,40 @@ class StripView(ToolHomeView):
             return
 
         removed = outcome.result.removed
-        self._last_has_metadata = bool(removed)
+        # Real metadata = rows with a non-marker value. The
+        # `(not present)` / `(empty)` rows are informational —
+        # they describe the schema, not actual data in the file.
+        non_empty = [
+            r for r in removed if r.before not in self._EMPTY_MARKERS
+        ]
+        self._last_rows = list(removed)
+        self._last_has_metadata = bool(non_empty)
 
         if self._diff is not None:
-            self._diff.set_rows(removed if removed else [])
+            self._diff.set_rows(self._filtered_rows())
 
         if self._banner is not None:
-            if removed:
-                self._banner.update(f"❌  TIENE {len(removed)} CAMPO(S) DE METADATOS")
+            if non_empty:
+                self._banner.update(
+                    f"❌  TIENE {len(non_empty)} CAMPO(S) "
+                    f"DE METADATOS  ({len(removed)} totales en el schema)"
+                )
                 self._banner.set_classes("banner bad")
             else:
-                self._banner.update("✅  SIN METADATOS — la imagen ya está limpia")
+                self._banner.update(
+                    "✅  SIN METADATOS — el archivo está limpio"
+                )
                 self._banner.set_classes("banner ok")
             self._banner.display = True
 
         if self._write_button is not None:
-            self._write_button.display = bool(removed)
+            self._write_button.display = bool(non_empty)
 
         self._set_status(
-            f"scan: {outcome.size_before} bytes, "
-            f"{len(removed)} field(s) would be removed",
-            "" if removed else "warn",
+            f"scan: {outcome.size_before} bytes  ·  "
+            f"{len(non_empty)} field(s) with data  ·  "
+            f"{len(removed)} total in schema",
+            "" if non_empty else "warn",
         )
 
     def _write_clean_copy(self) -> None:
@@ -297,6 +341,8 @@ class StripView(ToolHomeView):
             self._diff.set_rows([])
         if self._write_button is not None:
             self._write_button.display = False
+        self._last_rows = []
+        self._last_has_metadata = False
 
     def _set_status(self, text: str, cls: str) -> None:
         if self._status is None:

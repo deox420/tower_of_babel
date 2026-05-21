@@ -25,6 +25,14 @@ class EncryptedPDFError(ValueError):
     """Raised when the input PDF is encrypted -- STRIP refuses these."""
 
 
+# Standard /Info dict keys per PDF 1.7 §14.3.3. Reported as
+# `(not present)` when the file doesn't carry them.
+_STANDARD_INFO_KEYS = (
+    "Title", "Author", "Subject", "Keywords",
+    "Creator", "Producer", "CreationDate", "ModDate", "Trapped",
+)
+
+
 def strip_pdf(data: bytes, *, aggressive: bool = False) -> StripResult:
     try:
         from pypdf import PdfReader, PdfWriter
@@ -74,6 +82,21 @@ def strip_pdf(data: bytes, *, aggressive: bool = False) -> StripResult:
                                         f"{len(old_id)}-element array"))
         except Exception:
             removed.append(FieldRemoved("PDF.ID", "(present)"))
+    else:
+        removed.append(FieldRemoved("PDF.ID", "(not present)"))
+
+    # `(not present)` rows for every standard /Info key the file does
+    # not carry — same UX pattern as JPEG/PNG.
+    seen_info_keys: set[str] = {
+        row.field[len("PDF.Info."):]
+        for row in removed if row.field.startswith("PDF.Info.")
+    }
+    for k in _STANDARD_INFO_KEYS:
+        if k not in seen_info_keys:
+            removed.append(FieldRemoved(f"PDF.Info.{k}", "(not present)"))
+    # Also report XMP `(not present)` if the catalog didn't carry it.
+    if not any(row.field == "PDF.Metadata" for row in removed):
+        removed.append(FieldRemoved("PDF.Metadata", "(not present)"))
 
     # Build a fresh writer with just the pages. Not cloning the document
     # catalog avoids carrying /Info, /Metadata, and assorted document-level

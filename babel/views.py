@@ -207,6 +207,15 @@ class ToolHomeView(Vertical):
 
 
 class VoidHomeView(ToolHomeView):
+    """Base info card for VOID. Three subclasses below pick the launch mode.
+
+    Full in-chrome migration is still v2.1.0 work. Pressing [Enter]
+    on any VOID home view exits the suite app with
+    ``("launch_void", argv)``, and ``babel.__main__._run_menu``
+    re-execs VoidApp with that argv. The three subclasses differ
+    only in the argv they hand back, so each menu entry picks a
+    mode without requiring per-mode TUI scaffolding.
+    """
     name = "VOID"
     flavour = "SERVICE"
     logo = art.VOID_LOGO
@@ -216,8 +225,9 @@ class VoidHomeView(ToolHomeView):
         "no key material on disk, /burn wipes RAM on exit."
     )
     cli_examples = [
-        ("babel --exec void",                "open the lobby"),
-        ("babel --exec void --make-invite",  "host a room, print a void:// link"),
+        ("babel --exec void",                "open the lobby (client)"),
+        ("babel --exec void --host",         "run a void-server daemon"),
+        ("babel --exec void --make-invite",  "host a room + print void:// link"),
         ("babel --exec void --setup",        "diagnostic (tor / mlock / xeddsa)"),
     ]
     threat_note = (
@@ -225,6 +235,9 @@ class VoidHomeView(ToolHomeView):
         "[Enter] here briefly suspends the suite and runs VOID standalone. "
         "When VOID exits you return to the babel menu."
     )
+
+    # Subclasses override this to inject the launch flag.
+    _launch_argv: tuple[str, ...] = ()
 
     BINDINGS = [
         Binding("escape", "leave",  "back to menu", show=True, priority=True),
@@ -236,21 +249,62 @@ class VoidHomeView(ToolHomeView):
         return "ready"
 
     def action_launch(self) -> None:
-        """Exit the suite app with a return-value hand-off.
-
-        ``babel.__main__._run_menu`` inspects ``app.return_value`` and,
-        if it's ``("launch_void", argv)``, runs VOID standalone with
-        those argv. When VOID exits the menu is re-launched, restoring
-        the v1.0 flow until VOID's screens are fully ported.
-        """
         app = self.app
+        argv = list(self._launch_argv)
         try:
-            app.exit(result=("launch_void", []))
+            app.exit(result=("launch_void", argv))
         except TypeError:
             try:
-                app.exit(("launch_void", []))
+                app.exit(("launch_void", argv))
             except Exception:
                 app.exit()
+
+
+class VoidServerOnlyView(VoidHomeView):
+    """VOID-S: run only the relay daemon (no chat UI)."""
+    name = "VOID-S"
+    summary = (
+        "VOID server-only mode. Runs the relay daemon that other VOID "
+        "clients connect to. Pure server — no chat UI on this side. "
+        "Useful when this host is the meeting point."
+    )
+    threat_note = (
+        "Press [Enter] to suspend the suite and start a void-server "
+        "process in this terminal. Ctrl+C stops the server and returns "
+        "you to the babel menu."
+    )
+    _launch_argv = ("--host",)
+
+
+class VoidServerClientView(VoidHomeView):
+    """VOID-SC: spawn an ephemeral server + a client invite link."""
+    name = "VOID-SC"
+    summary = (
+        "VOID server + client. Spawns an ephemeral .onion relay on "
+        "this host, runs the server, and prints a void:// invite link "
+        "your peer can paste into their own VOID client."
+    )
+    threat_note = (
+        "Press [Enter] to suspend the suite and run `void --make-invite`. "
+        "The server lives only while this command is open; when you exit "
+        "you return to the babel menu and the .onion is torn down."
+    )
+    _launch_argv = ("--make-invite",)
+
+
+class VoidClientOnlyView(VoidHomeView):
+    """VOID-C: open the standard VOID lobby as a client."""
+    name = "VOID-C"
+    summary = (
+        "VOID client-only mode. Opens the VOID lobby; you point it at "
+        "a remote .onion or ws:// server URL and join a room. No server "
+        "is hosted on this side."
+    )
+    threat_note = (
+        "Press [Enter] to suspend the suite and open the VOID client. "
+        "When the client exits you return to the babel menu."
+    )
+    _launch_argv = ()
 
 
 # ---------------------------------------------------------------------------
@@ -265,8 +319,14 @@ class VoidHomeView(ToolHomeView):
 
 def view_class_for(tool: str) -> type[ToolHomeView] | None:
     name = tool.lower()
-    if name == "void":
-        return VoidHomeView
+    # VOID has three menu entries — server-only, server+client, client-only —
+    # each mapped to a different launch argv on VoidApp.
+    if name in ("void", "void-c"):
+        return VoidClientOnlyView
+    if name == "void-s":
+        return VoidServerOnlyView
+    if name == "void-sc":
+        return VoidServerClientView
     if name == "mask":
         from tools.mask.app import MaskView
         return MaskView
@@ -283,7 +343,7 @@ def view_class_for(tool: str) -> type[ToolHomeView] | None:
 
 
 def all_tool_names() -> list[str]:
-    return ["void", "mask", "strip", "carrier", "mirage"]
+    return ["void-s", "void-sc", "void-c", "mask", "strip", "carrier", "mirage"]
 
 
 __all__ = [

@@ -80,8 +80,27 @@ def strip_mp3(data: bytes, *, aggressive: bool = False) -> StripResult:
         except struct.error:
             pass
 
+    # `(not present)` rows for the standard frames that weren't in
+    # the file (ID3v2 + the four ID3v1 string fields).
+    seen_ids: set[str] = set()
+    for row in removed:
+        if row.field.startswith("MP3.ID3v2."):
+            seen_ids.add(row.field[len("MP3.ID3v2."):])
+        elif row.field.startswith("MP3.ID3v1."):
+            seen_ids.add(f"v1:{row.field[len('MP3.ID3v1.'):]}")
+    for label in _ID3V2_FRAME_LABELS.values():
+        if label not in seen_ids:
+            removed.append(FieldRemoved(
+                f"MP3.ID3v2.{label}", "(not present)",
+            ))
+    for label in ("Title", "Artist", "Album", "Year"):
+        if f"v1:{label}" not in seen_ids:
+            removed.append(FieldRemoved(
+                f"MP3.ID3v1.{label}", "(not present)",
+            ))
+
     if head_drop == 0 and tail_drop == 0:
-        return StripResult(payload=data, removed=[])
+        return StripResult(payload=data, removed=removed)
 
     payload = data[head_drop : len(data) - tail_drop if tail_drop else None]
     return StripResult(payload=bytes(payload), removed=removed)

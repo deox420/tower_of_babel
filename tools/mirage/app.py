@@ -25,7 +25,10 @@ from shared.tor.socks_detect import detect_socks_port
 from tools.mirage.engine import (
     EngineConfig, Event, HttpxTransport, MirageEngine,
 )
-from tools.mirage.profile import LOCALES, list_profiles
+from tools.mirage.profile import (
+    LOCALES, ProfileSpec, get_profile, is_user_profile, list_profiles,
+)
+from tools.mirage.profile_editor import MirageProfileEditView
 
 
 _PROFILE_NAMES = [s.name for s in list_profiles()]
@@ -121,6 +124,9 @@ class MirageView(ToolHomeView):
                 self._honest_button = Button(self._honest_label(),
                                              id="mirage-honest")
                 yield self._honest_button
+                yield Button("[ Edit profile ]", id="mirage-edit-profile")
+                yield Button("[ New profile ]", id="mirage-new-profile",
+                             variant="primary")
             self._snapshot_line = Static(
                 "  (click [Start engine] or press [s]; engine is idle)",
                 classes="field",
@@ -179,6 +185,57 @@ class MirageView(ToolHomeView):
             self.action_toggle_tor()
         elif bid == "mirage-honest":
             self.action_honest()
+        elif bid == "mirage-edit-profile":
+            self.action_edit_profile()
+        elif bid == "mirage-new-profile":
+            self.action_new_profile()
+
+    def action_edit_profile(self) -> None:
+        """Open the profile editor seeded with the current profile."""
+        try:
+            seed = get_profile(self.config.profile)
+        except ValueError:
+            seed = None
+        editor = MirageProfileEditView(
+            seed=seed,
+            on_saved=self._on_profile_saved,
+        )
+        try:
+            self.mount(editor)
+            editor.focus()
+        except Exception as e:
+            self._set_status(
+                f"profile editor failed to mount: "
+                f"{type(e).__name__}: {e}", "err",
+            )
+
+    def action_new_profile(self) -> None:
+        """Open the profile editor with a blank draft."""
+        editor = MirageProfileEditView(
+            seed=None,
+            on_saved=self._on_profile_saved,
+        )
+        try:
+            self.mount(editor)
+            editor.focus()
+        except Exception as e:
+            self._set_status(
+                f"profile editor failed to mount: "
+                f"{type(e).__name__}: {e}", "err",
+            )
+
+    def _on_profile_saved(self, spec: ProfileSpec) -> None:
+        """Callback: a profile was saved. Adopt it as the active profile.
+
+        ``EngineConfig.profile`` is a profile *name* (engine resolves
+        it to a spec via ``get_profile``). Setting it here is safe even
+        if the engine is running — it'll be picked up on the next
+        engine restart.
+        """
+        self.config.profile = spec.name
+        self._refresh_mode()
+        marker = " (user)" if is_user_profile(spec.name) else ""
+        self._set_status(f"profile saved & active: {spec.name}{marker}", "")
 
     def on_mount(self) -> None:
         # ToolHomeView's on_mount focuses the widget; keep that and

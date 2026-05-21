@@ -2,6 +2,100 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased — v2.0.x polish #2
+
+Second user-feedback pass. Direct user reports:
+
+- STRIP: "should tell which fields have metadata and show full info
+  of all fields, empty or full"
+- MIRAGE: "buttons to adapt profiles and to create/save user
+  profiles, for more personalization and discretion"
+- VOID: "integrated like the rest, not redirect me. Also option to
+  act only as server, server + client, or only as client"
+- MASK: "there's a blue button I don't know what it does. Verify a
+  fake profile with mail is reproducible. The mask it prints what's
+  it for? It prints two masks. Buttons to configure profiles and
+  locale"
+
+### Fixed (MASK)
+
+- **"Empty mask above the real mask" bug.** The avatar slot was a
+  permanently-mounted empty Static between the identity block and
+  the share-URL line; with both blocks styled (green/cyan) the empty
+  slot read as a third, blank block. The avatar widget is now hidden
+  by `display = False` until `[v]iew` is pressed.
+- **Identity and share-URL blocks now have explicit labels**
+  (`IDENTITY`, `SHARE URL (mask://)`) plus a one-line explanation
+  of what the `mask://` is for ("paste anywhere to restore this
+  whole identity"), so the two blocks are obviously different
+  things, not "two masks".
+
+### Added (MASK)
+
+- `[ Locale ]` and `[ Profile ]` cycle Buttons in a second button
+  row (used to be keys-only).
+- `[ Vault ]` button opens a new `MaskVaultView` listing stored
+  identities. Each row has `[ Restore ]`, `[ Inbox ]` (copies the
+  inbox URL to clipboard), `[ Delete ]`. This is the
+  "reproducible profile" path: the `mask://` URL stored in the
+  Vault encodes the full identity including mail credentials, so
+  `mask_parse(url)` restores a working profile (you can still log
+  into the inbox).
+- `[ Open inbox ]` button on the main view appears only when the
+  current identity has an inbox URL.
+- `[ Save to Vault ]` renamed to `[ Save identity to Vault ]` for
+  clarity.
+
+### Added (STRIP)
+
+- **All-fields listing.** Each parser (`tools/strip/core/{jpeg,
+  png,pdf,docx,mp3}.py`) now emits `(not present)` rows for every
+  standard field the format defines but the file doesn't carry.
+  JPEG covers the 25 known IFD0/EXIF/GPS tags; PNG covers the 10
+  standard text keywords plus `tIME` and `eXIf`; PDF covers the 9
+  standard `/Info` keys plus XMP; DOCX covers core + app standard
+  elements; MP3 covers the common ID3v2 frames and ID3v1 string
+  fields. The user can answer "does this photo have GPS?" by
+  scanning the diff for `GPS.GPSLatitude` without remembering the
+  list.
+- **`[ Show: all / non-empty ]` toggle** filters the diff to rows
+  with actual data when the schema view is too noisy.
+- **Banner now keyed on real metadata.** Red banner only triggers
+  when at least one field has a non-empty value; a file with 25
+  `(not present)` rows is correctly shown as green / clean.
+
+### Added (MIRAGE)
+
+- **User profile editor.** New view `MirageProfileEditView` mounted
+  via `[ Edit profile ]` (seeded with the active profile) or
+  `[ New profile ]` (blank draft). Inputs for name, description,
+  rpm range, dwell range, sites_key. Saved profiles persist as
+  TOML files in `~/.babel/mirage_profiles/`.
+- **User profiles auto-merge with built-ins.** `list_profiles()`
+  returns the 4 built-ins followed by every user-saved profile.
+  `get_profile(name)` looks up across both. `is_user_profile(name)`
+  distinguishes the two for UI labelling.
+
+### Added (VOID)
+
+- **Three menu entries instead of one**, each launching VOID in a
+  specific mode:
+  - `[1] VOID-S` (server-only) → `void --host`
+  - `[2] VOID-SC` (server + client) → `void --make-invite`
+  - `[3] VOID-C` (client-only) → standard VOID lobby
+- All three use the existing `("launch_void", argv)` hand-off from
+  the chrome to `babel.__main__._run_menu`. The user picks the
+  mode when entering VOID rather than after the lobby loads.
+
+### Out of scope (deferred)
+
+- **Full VOID in-chrome migration**. VoidApp is ~2.4k LOC with its
+  own Textual App + screens + asyncio sockets + Double Ratchet.
+  Migrating to a `ToolHomeView` is a rewrite of VOID and risks the
+  crypto path. Stays v2.1.0 per `docs/V2_REDESIGN.md` §7.5.
+- **Public `Vault.remove(fp)` API**. The `MaskVaultView` delete
+  button uses the existing `Vault.drop()` method.
+
 ## Unreleased — v2.0.x polish
 
 UX pass on the monolithic-app shell after first-real-user feedback
