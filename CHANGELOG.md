@@ -6,6 +6,16 @@ Versions follow `MAJOR.MINOR.PATCH`.
 
 ### Fixed (installer)
 
+- **Termux: `Failed to build Pillow` / `failed-wheel-build-for-install`
+  during the final pip step.** PyPI has no Pillow wheel for the
+  `aarch64-linux-android` triple, so pip fell back to a source build
+  that needs `libjpeg-turbo` headers (and `zlib` headers) — neither of
+  which the installer pulled in. The Termux `pkg` step now installs
+  the prebuilt `python-pillow` package up front, so pip's resolver
+  sees Pillow as already-satisfied and skips the wheel build entirely.
+  `libjpeg-turbo` + `zlib` are added alongside as a fallback for the
+  unlikely case `python-pillow` is unavailable on a given Termux
+  channel.
 - **Termux: `sh: ...usr/bin/sh: cannot execute binary file` on
   `curl ... | sh`.** The installer's POSIX preamble re-execs into
   bash when invoked under a non-bash shell, but only recognised the
