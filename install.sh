@@ -23,11 +23,18 @@
 if [ -z "${BASH_VERSION-}" ]; then
     if command -v bash >/dev/null 2>&1; then
         # When invoked as `sh ./install.sh`, $0 points at a real file and
-        # we can simply re-exec. When piped from curl, $0 is "sh" / "dash"
-        # and stdin has already been consumed by the parser, so re-exec
-        # isn't possible — print a clear error with the correct command.
-        case "$0" in
-            sh|-sh|dash|-dash|ash|-ash|/bin/sh|/bin/dash|/bin/ash) ;;
+        # we can simply re-exec. When piped from curl, $0 is the shell
+        # binary itself (e.g. "sh", "/bin/sh", or on Termux
+        # "/data/data/com.termux/files/usr/bin/sh") and stdin has already
+        # been consumed by the parser, so re-exec isn't possible —
+        # print a clear error with the correct command.
+        # Normalize $0 to a basename so we recognise the shell regardless
+        # of the absolute path it lives at (Termux's prefix differs from
+        # the standard /bin one).
+        _b0=${0#-}        # strip leading "-" (login-shell marker)
+        _b0=${_b0##*/}    # strip directory portion
+        case "$_b0" in
+            sh|dash|ash|bash|busybox|ksh|zsh) ;;
             *)
                 if [ -r "$0" ]; then
                     exec bash "$0" "$@"

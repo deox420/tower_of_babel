@@ -83,15 +83,19 @@ iwr -useb https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.
 ```
 
 **Android (Termux)** -- install [Termux from F-Droid](https://f-droid.org/packages/com.termux/)
-first, then run the same Linux command (the installer auto-detects
-Termux and pulls the right packages):
+first, then pipe the installer into **bash** (Termux ships bash by
+default; the installer auto-detects Termux and pulls the right
+packages):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/deox420/tower_of_babel/main/install.sh | bash
 ```
 
 > **Android:** install Termux **from F-Droid only**. The Play Store
-> version is unmaintained and breaks `pkg`.
+> version is unmaintained — it breaks `pkg` and can also produce
+> `sh: /data/data/com.termux/files/usr/bin/sh: cannot execute binary file`
+> when its bundled shell mismatches the device ABI. Uninstall it and
+> install the F-Droid build instead.
 
 Prebuilt binaries for Linux + macOS + Windows are attached to the
 [latest release](https://github.com/deox420/tower_of_babel/releases/latest)
