@@ -2,6 +2,27 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased — v2.0.x polish #3
+
+### Fixed (installer)
+
+- **Termux: `sh: ...usr/bin/sh: cannot execute binary file` on
+  `curl ... | sh`.** The installer's POSIX preamble re-execs into
+  bash when invoked under a non-bash shell, but only recognised the
+  shell paths `/bin/sh|/bin/dash|/bin/ash`. On Termux the shell lives
+  at `/data/data/com.termux/files/usr/bin/sh`, so the case statement
+  fell through to `exec bash "$0"` — which asked bash to *run the
+  sh binary itself as a script* and produced the "cannot execute
+  binary file" error. The preamble now strips the leading `-`
+  (login-shell marker) and the directory portion of `$0` before
+  matching against shell names, so it recognises sh at any prefix
+  (Termux, Nix, custom rootfs, etc.) and emits the same clear
+  "requires bash" message instead.
+- README's Termux install command now pipes into `bash` directly
+  (matching `docs/INSTALL.md`), and the "Play Store version is
+  unmaintained" callout now also lists the `cannot execute binary
+  file` symptom as another way it manifests.
+
 ## Unreleased — v2.0.x polish #2
 
 Second user-feedback pass. Direct user reports:
