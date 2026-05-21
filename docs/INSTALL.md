@@ -151,6 +151,20 @@ kernels). VOID continues without it; a one-time stderr warning is
 shown. If swap is also enabled, the IK seed may end up on disk —
 disable swap if that matters for your threat model.
 
+### Termux: `Failed to build Pillow` / `failed-wheel-build-for-install`
+
+PyPI has no Pillow wheel for `aarch64-linux-android`, so pip tries to
+compile it from source and trips on missing `libjpeg-turbo` headers.
+Install the prebuilt Termux package, then re-run the pip step:
+
+```bash
+pkg install -y python-pillow libjpeg-turbo zlib
+pip install --user --no-cache-dir ~/.local/share/void
+```
+
+Newer installer runs (v2.0.x polish #3 and later) pull
+`python-pillow` automatically.
+
 ### Termux: `pydantic-core` or `xeddsa` build fails
 
 The installer should handle both, but if it didn't:

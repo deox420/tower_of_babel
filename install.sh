@@ -108,8 +108,15 @@ install_pkgs() {
             pkg update -y >/dev/null
             # Core deps with prebuilt Termux packages. cmake + libsodium are
             # needed below to compile the libxeddsa C library from source.
-            pkg install -y python tor python-cryptography clang make cmake \
-                          libffi libsodium git pkg-config openssl
+            # python-pillow is the prebuilt aarch64-android Pillow (PyPI has
+            # no wheels for this triple, so without it pip falls back to a
+            # source build that needs libjpeg-turbo headers and fails with
+            # "Failed to build Pillow" before the suite can install).
+            # libjpeg-turbo + zlib stay in the list as a fallback for the
+            # rare case where python-pillow is unavailable or out of date.
+            pkg install -y python python-pillow tor python-cryptography \
+                          clang make cmake libffi libjpeg-turbo zlib \
+                          libsodium git pkg-config openssl
             # pydantic-core is a Rust extension with no Android wheel on PyPI,
             # so pip would otherwise fail trying to fetch a rustup toolchain
             # for aarch64-linux-android (which doesn't exist). Termux's own
