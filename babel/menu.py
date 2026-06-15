@@ -5,13 +5,13 @@ that mounts inside ``babel.shell.Chrome``'s content slot. The chrome
 owns the outer frame and the footer; the menu owns its card-shaped
 centerpiece.
 
-All five entries are live: MASK, STRIP, CARRIER and MIRAGE mount their
-real interactive views in-chrome (``tools/<tool>/app.py``); VOID
-mounts a transitional info card whose ``[Enter]`` binding exits the
-suite app so ``babel.__main__`` can launch ``VoidApp`` standalone.
-When VOID exits the suite app re-launches and the user lands back on
-this menu. See docs/V2_REDESIGN.md §7.5 for the v2.1.0 plan to bring
-VOID fully in-chrome.
+All entries are live in-chrome. MASK, STRIP, CARRIER, MIRAGE and the
+VOID **client** (VOID-C) mount real interactive views in the content
+slot (``tools/<tool>/app.py`` and ``tools/void/client/chrome_view.py``).
+The VOID **server** modes (VOID-S, VOID-SC) are relay/onion-hosting
+daemons rather than chat UIs, so their info cards still ``[Enter]``-exit
+the suite to run ``void-server`` / ``void --make-invite`` standalone and
+return to this menu on exit.
 """
 from __future__ import annotations
 
