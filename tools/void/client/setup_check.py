@@ -47,13 +47,13 @@ def run() -> int:
         out.write(f"  Tor SOCKS5: not detected (tried {TOR_SOCKS_CANDIDATES})\n")
 
     status = secure_mem.mlock_status()
-    out.write(f"  mlock available:                  ")
+    out.write("  mlock available:                  ")
     out.write("OK\n" if status["mlock_ok"] else f"FAIL ({status['reason']})\n")
 
-    out.write(f"  swap active:                      ")
+    out.write("  swap active:                      ")
     out.write("yes\n" if status["swap_active"] else "no\n")
 
-    out.write(f"  terminal:                         ")
+    out.write("  terminal:                         ")
     if colour_supported():
         out.write(f"OK (TERM={os.environ.get('TERM', '?')})\n")
     else:

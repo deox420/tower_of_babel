@@ -207,7 +207,7 @@ def extract_payload(
     header = framing.read_header(header_bytes, max_bytes=capacity.safe_bytes)
 
     if header.length < TAG_LEN:
-        raise ValueError(f"length field below GCM tag minimum")
+        raise ValueError("length field below GCM tag minimum")
 
     total = framing.HEADER_LEN + header.length
     if total > capacity.safe_bytes:

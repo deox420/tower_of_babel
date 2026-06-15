@@ -30,12 +30,12 @@ from __future__ import annotations
 import asyncio
 import datetime
 import os
-from dataclasses import dataclass, field
-from typing import Callable, Iterable, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Callable, Protocol, runtime_checkable
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
+from textual.containers import Container
 from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import Static

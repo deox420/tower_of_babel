@@ -24,7 +24,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shared.crypto.aead import KEY_LEN, NONCE_LEN, decrypt, encrypt
 from shared.crypto.kdf import SALT_LEN, argon2id
@@ -32,6 +32,11 @@ from shared.crypto.secure_mem import SecureBytes
 
 from tools.mask.alias import AliasSpec
 from tools.mask.avatar import Avatar
+
+if TYPE_CHECKING:
+    # Forward-ref only: keeps the mail module out of import-time so a
+    # MASK run that never touches temp-mail does not pull httpx.
+    from tools.mask.mail import MailHandle
 
 
 BUNDLE_MAGIC = b"MASK"

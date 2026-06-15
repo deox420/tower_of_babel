@@ -24,7 +24,6 @@ from typing import Sequence
 
 from cryptography.exceptions import InvalidTag
 
-from shared.ui.compact import is_compact
 from shared.ui.hex_view import render_hex
 from tools.carrier.capacity import PayloadTooLargeError
 from tools.carrier.chisquare import chi_square

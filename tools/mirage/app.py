@@ -284,7 +284,7 @@ class MirageView(ToolHomeView):
         else:
             state = "stopped"
         self._snapshot_line.update(
-            f"  {state}  {snap['requests']} requests  "
+            f"  {state}  {snap['requests']} requests ({rpm}/min)  "
             f"{kbpm} KB/min avg  cpu {snap['cpu_avg']:.1f}%  "
             f"uptime {_fmt_uptime(up)}"
         )

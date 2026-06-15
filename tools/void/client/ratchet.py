@@ -18,8 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
-from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Tuple
 
 import xeddsa
 from cryptography.hazmat.primitives import hashes
@@ -39,7 +38,6 @@ from doubleratchet.double_ratchet import DoubleRatchet as DoubleRatchetBase
 from doubleratchet.kdf import KDF
 from doubleratchet.types import Header as DRHeader, EncryptedMessage
 
-from x3dh.base_state import KeyAgreementException
 from x3dh.identity_key_pair import IdentityKeyPairSeed
 from x3dh.state import State
 from x3dh.types import Bundle, Header as X3DHHeader, IdentityKeyFormat
@@ -91,9 +89,9 @@ class VoidAEAD(AEAD):
         try:
             return AESGCM(enc_key).decrypt(iv, ciphertext, associated_data)
         except InvalidTag as e:
-            raise AuthenticationFailedException(str(e))
+            raise AuthenticationFailedException(str(e)) from e
         except Exception as e:
-            raise DecryptionFailedException(str(e))
+            raise DecryptionFailedException(str(e)) from e
 
     @staticmethod
     def _derive(key: bytes) -> Tuple[bytes, bytes]:

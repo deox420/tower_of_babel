@@ -26,11 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import collections
-import dataclasses
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Protocol
+from typing import Callable, Protocol
 
 from shared.tor.socks_detect import detect_socks_port
 

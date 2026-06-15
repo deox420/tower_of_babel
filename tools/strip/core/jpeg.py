@@ -17,7 +17,6 @@ Section 2.
 from __future__ import annotations
 
 import struct
-from typing import Iterable
 
 from shared.ui.diff_view import FieldRemoved
 from tools.strip.diff import StripResult

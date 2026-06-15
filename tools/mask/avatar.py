@@ -25,7 +25,6 @@ from __future__ import annotations
 import colorsys
 import hashlib
 import io
-import textwrap
 from dataclasses import dataclass
 
 

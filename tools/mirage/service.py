@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from tools.mirage.engine import EngineConfig, Event, MirageEngine, Transport
+from tools.mirage.engine import Event, MirageEngine
 
 
 class MirageService:

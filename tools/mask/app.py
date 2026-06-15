@@ -605,21 +605,21 @@ class MaskVaultView(Container):
             ))
             return
 
-        for art in artifacts:
+        for artifact in artifacts:
             line = Static(
-                f"  {art.label}  ·  handle={art.fingerprint}",
+                f"  {artifact.label}  ·  handle={artifact.fingerprint}",
                 classes="field",
             )
             self._rows_container.mount(line)
             row = Horizontal(classes="row")
             self._rows_container.mount(row)
             row.mount(Button("[ Restore ]",
-                             id=f"vault-restore-{art.fingerprint}",
+                             id=f"vault-restore-{artifact.fingerprint}",
                              variant="success"))
             row.mount(Button("[ Inbox ]",
-                             id=f"vault-inbox-{art.fingerprint}"))
+                             id=f"vault-inbox-{artifact.fingerprint}"))
             row.mount(Button("[ Delete ]",
-                             id=f"vault-delete-{art.fingerprint}",
+                             id=f"vault-delete-{artifact.fingerprint}",
                              variant="error"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
