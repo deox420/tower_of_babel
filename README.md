@@ -126,10 +126,13 @@ babel --exec void --make-invite
 > **v2.0.0 breaking change.** The top-level `void`, `mask`, `strip`,
 > `carrier`, `mirage` aliases and the `babel <tool>` form are removed.
 > Run `babel` for interactive use or `babel --exec <tool> ...` for
-> scripting. See [CHANGELOG.md](CHANGELOG.md) for details. VOID's full
-> in-chrome migration is deferred to v2.1.0; selecting it from the
-> menu briefly hands off to its standalone client and returns when
-> VOID exits.
+> scripting. See [CHANGELOG.md](CHANGELOG.md) for details. The **VOID
+> client (VOID-C) now runs fully in-chrome** — lobby, connecting, and
+> chat are mounted in the suite's content slot like the other tools.
+> The server-hosting modes (VOID-S relay daemon, VOID-SC host +
+> invite) are daemons rather than chat UIs, so they still suspend the
+> suite and run `void-server` / `void --make-invite` standalone,
+> returning to the menu on exit.
 
 ## What this does NOT protect
 

@@ -2,6 +2,61 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased — VOID client in-chrome + MASK decode/import
+
+Brings the last hand-off tool into the chrome and closes the remaining
+CLI-only gaps so every action is reachable interactively from the menu.
+
+### Added — VOID client is now fully in-chrome (the v2.1.0 milestone)
+
+- **`tools/void/client/session.py` — `VoidSession`.** All of VOID's
+  transport + X3DH + Double Ratchet orchestration (room entry,
+  handshakes, presence, send/receive, cover traffic, RAM purge) is
+  extracted into a UI-agnostic controller that talks to a front-end
+  through the `VoidUI` callback surface. The crypto/wire code is now
+  audited once and shared by both front-ends.
+- **`tools/void/client/chrome_view.py` — `VoidView`.** Selecting the
+  VOID client (VOID-C / VOID) from the menu mounts a real interactive
+  view in the chrome's content slot, with swappable **lobby →
+  connecting → chat** stages, instead of suspending the suite. It is a
+  SERVICE-flavour tool: Alt+0 backgrounds it to a slot with the room
+  intact, and the chrome wipes its RAM via `purge_local` on close/quit.
+  Full command set (`/help`, `/peers`, `/verify`, `/trust`, `/burn`,
+  `/leave`, `/quit`, `/whoami`, `/map`) plus a CLEARNET/ONION transport
+  toggle and invite-paste autofill.
+- The standalone `VoidApp` (`babel --exec void`) was refactored onto the
+  same `VoidSession` — one orchestration codebase, two front-ends — and
+  keeps working unchanged for scripting/hand-off.
+- **VOID server modes** (VOID-S relay, VOID-SC host+invite) remain
+  info-card hand-offs: they are daemons, not chat UIs, and still run
+  `void-server` / `void --make-invite` standalone.
+
+### Added — MASK decode/import in the interactive view
+
+- The view now exposes the CLI's `decode` and `import` operations:
+  `[ Decode mask:// ]` (or `[d]`) restores a full identity from a
+  pasted `mask://` URL, and `[ Import blob ]` (or `[i]`) decrypts an
+  exported blob from a file + passphrase. The passphrase is scrubbed
+  from the input widget after use; wrong-passphrase / malformed-blob /
+  bad-path are surfaced without clobbering the current identity.
+
+### Added — tests
+
+- `tests/test_void_session.py` — two `VoidSession`s exchange E2E
+  encrypted messages through the real in-process relay (clearnet).
+- `tests/test_void_view.py` — the in-chrome stage machine
+  (lobby → connecting → chat → lobby) and message rendering, via
+  Textual's test pilot.
+- `tests/test_mask_view.py` — the MASK decode/import flow, including
+  wrong-passphrase rejection.
+
+### Fixed
+
+- `_ConnectingStage` originally named its step-renderer `_render`,
+  which shadows Textual's internal `Widget._render()` and crashed the
+  compositor (`'str' object has no attribute 'render_strips'`);
+  renamed to `_steps_markup`.
+
 ## Unreleased — v2.0.x polish #4
 
 Code-health pass: no behaviour change for users beyond one MIRAGE

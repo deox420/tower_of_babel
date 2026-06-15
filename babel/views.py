@@ -7,13 +7,17 @@ corresponding view in its content slot. v2.0.0 status:
   Their real widget trees live in ``tools/<tool>/app.py`` and inherit
   from :class:`ToolHomeView`. The chrome owns the outer frame and the
   footer; the tool view owns the content slot.
-* **VOID**: transitional. The home view is the v1.0 info card with one
-  added binding — `[Enter]` exits the chrome with ``return_value=
-  ("launch_void", argv)`` so ``babel.__main__`` can re-exec VOID as
-  its standalone app. Full migration of VOID's lobby/connecting/chat
-  screens into the chrome is tracked for v2.1.0
-  (docs/V2_REDESIGN.md §7.5; the screens currently inherit from
-  ``textual.Screen`` and would each need to become a Container).
+* **VOID client (VOID-C)**: fully interactive in-chrome. The lobby,
+  connecting, and chat stages live in
+  ``tools/void/client/chrome_view.VoidView`` (a SERVICE-flavour
+  ``ToolHomeView``) and are driven by the shared
+  ``tools.void.client.session.VoidSession`` controller — the same
+  controller the standalone ``VoidApp`` uses.
+* **VOID server (VOID-S, VOID-SC)**: still transitional. These run a
+  relay daemon / host an ephemeral .onion rather than presenting a chat
+  UI, so their home views keep the info-card hand-off: `[Enter]` exits
+  the chrome with ``return_value=("launch_void", argv)`` and
+  ``babel.__main__`` re-execs the server/host standalone.
 
 Each subclass declares:
 
@@ -319,10 +323,15 @@ class VoidClientOnlyView(VoidHomeView):
 
 def view_class_for(tool: str) -> type[ToolHomeView] | None:
     name = tool.lower()
-    # VOID has three menu entries — server-only, server+client, client-only —
-    # each mapped to a different launch argv on VoidApp.
+    # VOID has three menu entries. The CLIENT (void-c / void) is now a full
+    # in-chrome interactive view (lobby -> connecting -> chat) backed by the
+    # shared VoidSession controller. The SERVER modes (void-s, void-sc) are
+    # relay/onion-hosting daemons rather than chat UIs, so they keep the
+    # info-card hand-off that suspends the suite and runs void-server /
+    # `void --make-invite` standalone.
     if name in ("void", "void-c"):
-        return VoidClientOnlyView
+        from tools.void.client.chrome_view import VoidView
+        return VoidView
     if name == "void-s":
         return VoidServerOnlyView
     if name == "void-sc":

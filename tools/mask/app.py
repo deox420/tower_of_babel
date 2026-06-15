@@ -24,7 +24,7 @@ from typing import ClassVar
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input, Static
 
 from babel import art, theme
 from babel.art import BABEL_TAGLINE
@@ -33,7 +33,10 @@ from babel.views import ToolHomeView
 from shared.ui.step_indicator import Step, render_steps
 
 from tools.mask.alias import LOCALES, PROFILES
-from tools.mask.bundle import Identity
+from tools.mask.bundle import (
+    Identity, MalformedBlob, WrongPassphrase,
+    import_blob, passphrase_as_secure,
+)
 from tools.mask.avatar import block_preview
 from tools.mask.link import build as mask_build
 from tools.mask.link import parse as mask_parse
@@ -94,8 +97,14 @@ class MaskView(ToolHomeView):
         width: 100%;
         margin-bottom: 1;
     }}
+    MaskView #mask-restore-row {{
+        height: auto;
+        width: 100%;
+        margin-bottom: 1;
+    }}
     MaskView #mask-button-row Button,
-    MaskView #mask-toggle-row Button {{
+    MaskView #mask-toggle-row Button,
+    MaskView #mask-restore-row Button {{
         margin-right: 1;
     }}
     """
@@ -110,6 +119,8 @@ class MaskView(ToolHomeView):
         Binding("v", "view_avatar", "view",    show=True),
         Binding("c", "copy",        "copy",    show=True),
         Binding("s", "save_vault",  "save",    show=True),
+        Binding("d", "reveal_decode", "decode", show=True),
+        Binding("i", "reveal_import", "import", show=True),
         Binding("escape", "leave",  "back",    show=True, priority=True),
         Binding("alt+0",  "leave",  "menu",    show=False, priority=True),
         Binding("q", "leave",       "quit",    show=False),
@@ -133,6 +144,9 @@ class MaskView(ToolHomeView):
         self._locale_button: Button | None = None
         self._profile_button: Button | None = None
         self._inbox_button: Button | None = None
+        self._decode_input: Input | None = None
+        self._import_path_input: Input | None = None
+        self._import_pass_input: Input | None = None
         self._busy = False
 
     def compose(self) -> ComposeResult:
@@ -164,6 +178,24 @@ class MaskView(ToolHomeView):
                                             id="mask-inbox")
                 self._inbox_button.display = False
                 yield self._inbox_button
+
+            # RESTORE row: bring the CLI's `decode` / `import` into the TUI.
+            with Horizontal(id="mask-restore-row"):
+                yield Button("[ Decode mask:// ]", id="mask-decode-btn")
+                yield Button("[ Import blob ]", id="mask-import-btn")
+            self._decode_input = Input(
+                placeholder="mask://…  (Enter to decode)", id="mask-decode-url")
+            self._decode_input.display = False
+            yield self._decode_input
+            self._import_path_input = Input(
+                placeholder="path to exported .blob", id="mask-import-path")
+            self._import_path_input.display = False
+            yield self._import_path_input
+            self._import_pass_input = Input(
+                placeholder="passphrase  (Enter to import)", password=True,
+                id="mask-import-pass")
+            self._import_pass_input.display = False
+            yield self._import_pass_input
 
             # IDENTITY section
             self._identity_label = Static("  IDENTITY",
@@ -208,7 +240,8 @@ class MaskView(ToolHomeView):
             yield Static(" ")
             yield Static(
                 "  Enter/[n] new  [l] locale  [p] profile  [t] tor  "
-                "[m] mail  [v] view  [c] copy  [s] save  [Esc] back",
+                "[m] mail  [v] view  [c] copy  [s] save  [d] decode  "
+                "[i] import  [Esc] back",
                 classes="status",
             )
 
@@ -258,6 +291,105 @@ class MaskView(ToolHomeView):
             self.action_open_vault()
         elif bid == "mask-inbox":
             self.action_open_inbox()
+        elif bid == "mask-decode-btn":
+            self._reveal_decode()
+        elif bid == "mask-import-btn":
+            self._reveal_import()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        iid = event.input.id or ""
+        if iid == "mask-decode-url":
+            self._decode_url(event.value.strip())
+        elif iid in ("mask-import-path", "mask-import-pass"):
+            self._import_blob_file()
+
+    # ----- decode / import (the CLI's `decode` / `import`, in-chrome) ----
+
+    def action_reveal_decode(self) -> None:
+        self._reveal_decode()
+
+    def action_reveal_import(self) -> None:
+        self._reveal_import()
+
+    def _reveal_decode(self) -> None:
+        if self._decode_input is None:
+            return
+        if self._import_path_input is not None:
+            self._import_path_input.display = False
+        if self._import_pass_input is not None:
+            self._import_pass_input.display = False
+        self._decode_input.display = True
+        self._decode_input.value = ""
+        try:
+            self._decode_input.focus()
+        except Exception:
+            pass
+        self._set_status("paste a mask:// URL and press Enter to decode", "")
+
+    def _reveal_import(self) -> None:
+        if self._import_path_input is None or self._import_pass_input is None:
+            return
+        if self._decode_input is not None:
+            self._decode_input.display = False
+        self._import_path_input.display = True
+        self._import_pass_input.display = True
+        self._import_path_input.value = ""
+        self._import_pass_input.value = ""
+        try:
+            self._import_path_input.focus()
+        except Exception:
+            pass
+        self._set_status(
+            "give the exported blob path + its passphrase, then press Enter", "")
+
+    def _decode_url(self, url: str) -> None:
+        if not url:
+            self._set_status("no mask:// URL given", "err")
+            return
+        try:
+            identity = mask_parse(url)
+        except Exception as e:
+            self._set_status(f"decode failed: {type(e).__name__}: {e}", "err")
+            return
+        if self._decode_input is not None:
+            self._decode_input.display = False
+        self._adopt_identity(identity, "decoded mask:// URL")
+
+    def _import_blob_file(self) -> None:
+        if self._import_path_input is None or self._import_pass_input is None:
+            return
+        path = self._import_path_input.value.strip()
+        pw = self._import_pass_input.value
+        if not path:
+            self._set_status("give the path to an exported blob", "err")
+            return
+        if not pw:
+            self._set_status("a passphrase is required to import", "err")
+            return
+        try:
+            with open(path, "rb") as f:
+                blob = f.read()
+        except OSError as e:
+            self._set_status(f"cannot read {path}: {e.strerror or e}", "err")
+            return
+        try:
+            with passphrase_as_secure(pw.encode("utf-8")) as secure_pw:
+                identity = import_blob(blob, secure_pw)
+        except WrongPassphrase:
+            self._set_status("wrong passphrase or tampered blob", "err")
+            return
+        except MalformedBlob as e:
+            self._set_status(f"not a MASK blob: {e}", "err")
+            return
+        except Exception as e:
+            self._set_status(f"import failed: {type(e).__name__}: {e}", "err")
+            return
+        finally:
+            # Don't leave the passphrase sitting in the Input widget.
+            self._import_pass_input.value = ""
+        self._import_path_input.display = False
+        self._import_pass_input.display = False
+        self._adopt_identity(identity, f"imported {identity.alias.handle}")
 
     # ----- header -----------------------------------------------------
 
@@ -488,6 +620,16 @@ class MaskView(ToolHomeView):
                 f"restore failed: {type(e).__name__}: {e}", "err",
             )
             return
+        self._adopt_identity(
+            identity, f"restored {identity.alias.handle} from vault")
+
+    def _adopt_identity(self, identity: Identity, source: str) -> None:
+        """Make ``identity`` the current one and refresh the whole view.
+
+        Shared by the vault restore, the mask:// decoder, and the
+        encrypted-blob importer so they all sync opts, re-render, and
+        zeroize the previous identity identically.
+        """
         if self.identity is not None:
             try:
                 self.identity.zeroize()
@@ -500,9 +642,7 @@ class MaskView(ToolHomeView):
         self._refresh_mode()
         self._refresh_action_buttons()
         self._render_identity()
-        self._set_status(
-            f"restored {identity.alias.handle} from vault", "",
-        )
+        self._set_status(source, "")
 
     def _set_status(self, text: str, cls: str) -> None:
         if self._status is None:
