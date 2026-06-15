@@ -8,20 +8,20 @@ install:
 	$(PIP) install -r requirements.txt
 
 certs:
-	$(PY) -c "from server.main import generate_selfsigned; generate_selfsigned('cert.pem','key.pem')"
+	$(PY) -c "from tools.void.server.main import generate_selfsigned; generate_selfsigned('cert.pem','key.pem')"
 
 run-server:
-	$(PY) -m server --cert cert.pem --key key.pem --host 127.0.0.1
+	$(PY) -m tools.void.server --cert cert.pem --key key.pem --host 127.0.0.1
 
 run-server-insecure:
-	$(PY) -m server --insecure --host 127.0.0.1
+	$(PY) -m tools.void.server --insecure --host 127.0.0.1
 
 run-client-clearnet:
-	$(PY) -m client --clearnet --insecure --server ws://127.0.0.1:8765
+	$(PY) -m tools.void.client --clearnet --insecure --server ws://127.0.0.1:8765
 
 run-client-onion:
 	@if [ -z "$(ONION)" ]; then echo "ONION=<addr.onion[:8765]> required"; exit 1; fi
-	$(PY) -m client --onion $(ONION)
+	$(PY) -m tools.void.client --onion $(ONION)
 
 # Reproducible build on the current host. Two consecutive runs produce
 # byte-identical binaries thanks to pinned SOURCE_DATE_EPOCH and
@@ -31,8 +31,8 @@ build:
 
 # Reproducible build inside the pinned Docker image (official release path).
 build-docker:
-	docker build -f packaging/Dockerfile.build -t void-build:$$(cat VERSION) .
-	docker run --rm -v "$$PWD/dist:/src/dist" void-build:$$(cat VERSION)
+	docker build -f packaging/Dockerfile.build -t babel-build:$$(cat VERSION) .
+	docker run --rm -v "$$PWD/dist:/src/dist" babel-build:$$(cat VERSION)
 
 # Regenerate the hash-pinned requirements lock. Requires pip-tools.
 lock:

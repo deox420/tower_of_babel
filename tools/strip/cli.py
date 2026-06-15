@@ -25,7 +25,7 @@ from shared.ui.compact import is_compact
 from shared.ui.diff_view import render_diff
 from tools.strip.core.pdf import EncryptedPDFError
 from tools.strip.pipeline import (
-    SUPPORTED_EXTENSIONS, FileOutcome,
+    FileOutcome,
     batch_dst, iter_batch, strip_path, stripper_for,
 )
 

@@ -2,6 +2,58 @@
 
 Versions follow `MAJOR.MINOR.PATCH`.
 
+## Unreleased — v2.0.x polish #4
+
+Code-health pass: no behaviour change for users beyond one MIRAGE
+status-line addition. The suite was already functional; this removes
+dead weight, repairs stale developer tooling, and adds the regression
+tests the security-critical paths were missing.
+
+### Fixed
+
+- **`Makefile` pointed at modules that no longer exist.** The
+  `certs`, `run-server`, `run-server-insecure`, `run-client-clearnet`
+  and `run-client-onion` targets still referenced the pre-v2 top-level
+  `server` / `client` packages, so every one of them failed with
+  `No module named server`. They now address
+  `tools.void.server` / `tools.void.client`. The `build-docker` image
+  tag was renamed `void-build` → `babel-build` to match the suite.
+- **MIRAGE status line silently dropped the requests-per-minute rate.**
+  `_tick()` computed `rpm` right beside the displayed `KB/min` figure
+  but never rendered it; the value is now shown as
+  `<n> requests (<rpm>/min)`.
+- **`MailHandle` forward reference was unresolvable** for type
+  introspection in `tools.mask.bundle`; it now resolves through a
+  `TYPE_CHECKING` import without pulling `httpx` at module load.
+- **`shared.ui.step_indicator.__all__`** advertised `StepIndicator`,
+  which is provided lazily via PEP-562 `__getattr__`; annotated so
+  static analysers stop flagging it as undefined.
+
+### Changed (internal)
+
+- Removed ~20 unused imports and 5 placeholder f-strings across
+  `babel`, `shared`, and `tools`; renamed a MASK loop variable that
+  shadowed the imported `art` module.
+- Exceptions raised while handling another exception now chain with
+  `raise ... from e` in the VOID ratchet AEAD and STRIP's DOCX reader,
+  so the original cause survives in tracebacks.
+- `swap_active()` on macOS passes `check=False` to `subprocess.run`
+  explicitly (it already inspects the return code by hand).
+
+### Added (tests / CI)
+
+- `tests/test_crypto.py` — 28 tests covering the shared AEAD wrapper
+  (round-trip, AAD, wrong-key / tamper rejection, length guards), the
+  Argon2id and HKDF KDFs, and `SecureBytes` (write/zero/free, bounds,
+  use-after-free).
+- `tests/test_carrier.py` — CARRIER embed→extract round-trip on an
+  in-memory PNG cover, plus wrong-passphrase and over-capacity
+  rejection.
+- `tests/test_mask_bundle.py` — MASK encrypted export/import
+  round-trip, wrong-passphrase, malformed-blob, and `zeroize`.
+- `.github/workflows/ci.yml` — runs `ruff` (correctness rules) and the
+  unit-test suite on every push and pull request.
+
 ## Unreleased — v2.0.x polish #3
 
 ### Fixed (installer)

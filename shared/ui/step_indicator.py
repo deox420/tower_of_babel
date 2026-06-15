@@ -17,7 +17,7 @@ fallback (MASTER.md Section 3.5) flips this widget too.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Literal, Sequence
 
 from babel import theme
@@ -120,4 +120,6 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 
-__all__ = ["Step", "StepState", "render_steps", "advance", "StepIndicator"]
+# "StepIndicator" is provided lazily through module __getattr__ (PEP 562)
+# so importing this module stays Textual-free for headless callers.
+__all__ = ["Step", "StepState", "render_steps", "advance", "StepIndicator"]  # noqa: F822

@@ -251,7 +251,7 @@ class VoidApp(App):
         hello = crypto.pad_iso7816(crypto.encode_plaintext_hello(), crypto.PAD_BLOCK)
         try:
             dr, x3dh_h, em = await ratchet.handshake_active(self.identity, peer.bundle, hello)
-        except Exception as e:
+        except Exception:
             peer.state = "failed"
             self._refresh_status()
             return
@@ -554,7 +554,7 @@ class VoidApp(App):
         if not self.identity:
             return []
         out = []
-        for uid, p in sorted(self.peer_sessions.items()):
+        for _uid, p in sorted(self.peer_sessions.items()):
             if p.ik_pub is None:
                 continue
             words = sas_words(self.identity.ik_pub, p.ik_pub)

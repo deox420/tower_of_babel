@@ -48,7 +48,7 @@ def _print_banner(invite: str, onion: str, room: str, pw: str) -> None:
     print()
     print(f"    {invite}")
     print()
-    print(f"  details inside the invite:")
+    print("  details inside the invite:")
     print(f"    onion    : {onion}")
     print(f"    room key : {room}")
     print(f"    password : {pw}")

@@ -1,0 +1,40 @@
+name: ci
+
+# Lint + unit tests on every push and pull request. The release
+# workflow only fires on tag push and builds binaries; this one keeps
+# the mainline honest between releases.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install libsodium-dev (xeddsa C extension)
+        run: sudo apt-get update -qq && sudo apt-get install -y libsodium-dev
+
+      - name: Install package + dev tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install ruff
+
+      - name: Lint (correctness rules)
+        # Pyflakes (F) + syntax (E9) + the bugbear rules the tree is
+        # clean on. Style-only rules (line length etc.) are not gated.
+        run: ruff check --select F,E9,B904,B007,E741,PLW1510 babel shared tools tests
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v

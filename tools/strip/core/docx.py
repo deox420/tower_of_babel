@@ -57,7 +57,7 @@ def strip_docx(data: bytes, *, aggressive: bool = False) -> StripResult:
     try:
         zin = zipfile.ZipFile(io.BytesIO(data), "r")
     except zipfile.BadZipFile as e:
-        raise ValueError(f"not a DOCX (bad zip): {e}")
+        raise ValueError(f"not a DOCX (bad zip): {e}") from e
 
     removed: list[FieldRemoved] = []
     out_buf = io.BytesIO()

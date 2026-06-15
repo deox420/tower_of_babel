@@ -14,7 +14,6 @@ Cross-platform:
 from __future__ import annotations
 
 import ctypes
-import os
 import platform
 import subprocess
 import sys
@@ -263,13 +262,13 @@ def swap_active() -> bool:
     try:
         if sys.platform.startswith("linux"):
             with open("/proc/swaps", "r", encoding="utf-8", errors="ignore") as f:
-                lines = [l for l in f.read().splitlines() if l.strip()]
+                lines = [ln for ln in f.read().splitlines() if ln.strip()]
             # Header is always present; >1 lines = at least one swap area.
             return len(lines) > 1
         if _IS_MAC:
             out = subprocess.run(
                 ["sysctl", "-n", "vm.swapusage"],
-                capture_output=True, text=True, timeout=2,
+                capture_output=True, text=True, timeout=2, check=False,
             )
             if out.returncode == 0 and "used =" in out.stdout:
                 # used = 0.00M usually means swap configured but unused; still risky.
